@@ -4,29 +4,86 @@ A script language for chatbot, I learn PureScript by making the project.
 
 I start it from PureScript guides: [Getting-Started.md](https://github.com/purescript/documentation/blob/master/guides/Getting-Started.md).
 
+Event:
+- join
+- left
+- play
+- over
+- milk
+- talk
+- priv
+
+Inst:
+- event type   action
+- match [...]
+- title string
+- descr string
+- delay int
+- sleep int
+- timer time   action
+- print string
+- order string [src]
+- goto  state
+
+Reserve:
+- mate
+- host
+- self
+- room
+
+Operator:
+- +
+- -
+- *
+- /
+- =
+- .
+
 ```
-users: ...
-variable: ...
 
-state 1 {
-  var name litval
+u = users[2]
+state ex {
   name = value
-  name += value
-
-
+  name = name + value
 
   title "hello world"
+  descr "welcome to the new world"
+
   print "this is state 1"
+  order "yellow"
   delay 3
-  timer 60m action # may change room or something
-  expected "regex or condition"
-  expected "regex or condition" else "..."
-  select {
-    ("option 1" ... match with message or milk cookies) : action
-    event : action
+  sleep 3
+
+  timer 60m (){
+    print "pass 60 minutes"
+    for user : mate {
+      print "$user alive"
+    }
   }
-  handle event [... action]
+
+  match {
+    event join(){}
+    event left(){}
+  }
+
+  event talk (user : "", msg : "^/play"){
+    order ("$1" # msg)
+  }
+
   goto state
-  if variable condition then action else action
 }
+```
+
+```
+list = []
+state welcome {
+  event join (user){
+    if user in list then {
+      print "welcome back $user"
+    }
+    else list.append(user)
+  }
+}
+
+run welcome
 ```
