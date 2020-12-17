@@ -1,6 +1,11 @@
 module BotScriptVM where
 
 import Prelude
+
+import BotScript
+
 import Data.Array
 
-runVM cur script env = 0
+import Effect.Console (log)
+
+runVM cur script env = log "done"

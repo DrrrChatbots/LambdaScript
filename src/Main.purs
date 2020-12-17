@@ -1,11 +1,33 @@
 module Main where
 
-import Prelude
-import Effect (Effect)
-import Effect.Console (log)
+import BotScriptVM (runVM)
 import BotScriptParser
-import Effect.Console (logShow)
 
+import Prelude (Unit)
+import Effect (Effect)
 
--- main :: Effect Unit
-main = parse """state hello {  title "hello world" }"""
+ctx :: String
+ctx = """
+state hello {
+    title "hello"
+    descr "hello world!"
+    delay "20m"
+    print "hello again"
+    order "a song name"
+    going hello
+    x[2] = "asdf"
+    x = 3
+    x = 3.5
+    event left (user : "", msg : "^/play") {}
+}
+
+state world {
+    x[2] = "asdf"
+    x = 3
+    x = 3.5
+}
+"""
+
+main :: Effect Unit
+main = let script = parse parseScript ctx
+        in runVM "main" script []

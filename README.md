@@ -60,7 +60,7 @@ state ex {
 
   timer 60m (){
     print "pass 60 minutes"
-    for user : mate {
+    for user in mate {
       print "$user alive"
     }
   }
