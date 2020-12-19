@@ -1,6 +1,8 @@
 module BotScript where
 
 import Data.Array
+import Data.List as L
+import Data.List (List)
 import Data.Tuple.Nested
 import Prelude
 
@@ -14,18 +16,22 @@ instance showVar :: Show Var where
 
 data Expr
   = Arr (Array Expr)
-  | BinOp Expr Expr
-  | UnaOp String
+  | Bin String Expr Expr
+  | Una String Expr
   | Str String
   | Num Number
   | Ref Var
 
 instance showExpr :: Show Expr where
-  show (BinOp l r)
-    = "(BinOp "
+  show (Bin o l r)
+    = "(Bin "
+    <> show o <> " "
     <> show l <> " "
     <> show r <> ")"
-  show (UnaOp e) = "(UnaOp " <> " " <> show e <> ")"
+  show (Una o e)
+    = "(Una "
+    <> show o <> " "
+    <> show e <> ")"
   show (Num   n) = show n
   show (Str   s) = show s
   show (Ref   s) = "(Ref " <> show s <> ")"
@@ -58,7 +64,7 @@ data Action
   -- | Sleep Period
   | Renew Var Expr
   | Timer Period Action
-  | Group (Array Action)
+  | Group (List Action)
   | While Expr Action
   | Visit Var Expr Action
   | Match Expr Action Action
@@ -102,7 +108,7 @@ instance showBotState :: Show BotState where
   show (BotState name action) =
     "(BotState " <> name <> " " <> show action <> ")"
 
-data BotScript = BotScript (Array Action) (Array BotState)
+data BotScript = BotScript (List Action) (Array BotState)
 instance showBotScript :: Show BotScript where
-  show (BotScript bindings states) =
-    "(BotScript " <> show bindings <> " " <> show states <> ")"
+  show (BotScript actions states) =
+    "(BotScript " <> show actions <> " " <> show states <> ")"

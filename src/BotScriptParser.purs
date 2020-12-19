@@ -3,6 +3,8 @@ module BotScriptParser where
 import BotScript
 import Control.Lazy
 import Data.Array
+import Data.List as L
+import Data.List (List)
 import Data.Foldable
 import Data.Functor
 import Data.Int
@@ -10,6 +12,7 @@ import Data.Maybe
 import Data.String
 import Data.Tuple.Nested
 import Prelude
+import Text.Parsing.Parser
 import Text.Parsing.Parser.Combinators
 import Text.Parsing.Parser.Expr
 
@@ -33,7 +36,7 @@ reserved xs = try (whiteSpace *> string xs)
 
 parseNumber = whiteSpace *>
     (try tokParser.float
-    <|> try (tokParser.integer >>= toNumber >>> pure))
+    <|> try (toNumber <$> tokParser.integer))
 
 parseVar =
   parseIdentifier >>= \name ->
@@ -41,8 +44,8 @@ parseVar =
   pure $ Var name subs
 
 parseArray = fix $ \self ->
-  (brackets $ parseExpr `sepBy` (string ",")
-      >>= fromFoldable >>> Arr >>> pure)
+  (brackets $ fromFoldable >>> Arr <$>
+      parseExpr `sepBy` (string ","))
 
 event'types =
     [ ("join" /\ Join)
@@ -55,7 +58,7 @@ event'types =
     ]
 
 parseEtype = choice $ map (\(n /\ c)->
-    (reserved n *> pure c))
+    (reserved n $> c))
     event'types
 
 parsePattern = do
@@ -66,17 +69,31 @@ parsePattern = do
          Nothing -> pure $ var /\ ""
 
 parseRules = fix $ \self ->
-  (parens $ parsePattern `sepBy` (reserved ",")
-      >>= fromFoldable >>> pure)
+  (parens $ fromFoldable <$>
+      parsePattern `sepBy` (reserved ","))
+
+parseTerm p = choice
+    [ try $ parens p
+    , try parseArray
+    , try (Str <$> parseStringLiteral)
+    , try (Num <$> parseNumber)
+    , try (Ref <$> parseVar)
+    ]
+
+bin'op'tab =
+    [ [Prefix (Una <$> reserved "-")]
+    , [Prefix (Una <$> reserved "!")]
+    , [Infix (Bin <$> reserved "/") AssocLeft]
+    , [Infix (Bin <$> reserved "*") AssocLeft]
+    , [Infix (Bin <$> reserved "-") AssocLeft]
+    , [Infix (Bin <$> reserved "+") AssocLeft]
+    , [Infix (Bin <$> reserved "&") AssocRight]
+    , [Infix (Bin <$> reserved "|") AssocRight]
+    ]
 
 -- try to prevent consume input
-parseExpr = fix $ \self ->
-  try (parseStringLiteral >>= Str >>> pure)
-  <|> try (parseNumber >>= Num >>> pure)
-  <|> try (parseVar >>= Ref >>> pure)
-  <|> try parseArray
-  -- UnaOp
-  -- BinOp
+parseExpr = fix $ \self -> do
+    buildExprParser bin'op'tab (parseTerm self)
 
 expr'action =
     [ ("title" /\ Title)
@@ -89,7 +106,7 @@ expr'action =
     ]
 
 parseBinding =
-  try (parseVar >>= \var ->
+  (parseVar >>= \var ->
       string "=" *>
       parseExpr >>= \expr ->
       pure $ Renew var expr)
@@ -97,7 +114,7 @@ parseBinding =
 parseAction = fix $ \self ->
   (choice $
     map (\(n /\ c) ->
-        (reserved n *> parseExpr) >>= c >>> pure)
+        c <$> (reserved n *> parseExpr))
         expr'action)
   <|> (do
       _ <- reserved "event"
@@ -105,9 +122,9 @@ parseAction = fix $ \self ->
       rules <- parseRules
       action <- parseAction
       pure $ Event name rules action)
-  <|> (braces $ many self >>= Group >>> pure)
-  <|> (reserved "going" *> parseIdentifier >>= Going >>> pure)
-  <|> parseBinding
+  <|> try (braces $ Group <$> L.many self)
+  <|> (reserved "going" *> (Going <$> parseIdentifier))
+  <|> try parseBinding
   -- Timer
   -- while
   -- visit
@@ -119,10 +136,17 @@ parseState = do
   action <- parseAction
   pure $ BotState name action
 
-parseScript = do
-    bindings <- (many parseBinding)
-    states <- (many parseState)
-    pure $ BotScript bindings states
+parseScript = let
+    parseScript' = do
+        actions <- (many $ parseAction)
+        states <- (many $ parseState)
+        case actions, states of
+             [], [] -> fail "exhausted"
+             as, bs -> pure $ as /\ bs in
+    do xs <- many parseScript'
+       pure let a /\ s = unzip xs in
+           BotScript (L.fromFoldable $ concat a) (concat s)
+
 
 parse p str = runParser str $ p
 

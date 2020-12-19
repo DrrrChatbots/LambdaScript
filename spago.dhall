@@ -4,13 +4,16 @@ You can edit this file as you like.
 -}
 { name = "my-project"
 , dependencies =
-  [ "assert"
+  [ "aff"
+  , "assert"
   , "console"
   , "effect"
+  , "foreign-object"
   , "generics-rep"
   , "lists"
   , "parsing"
   , "psci-support"
+  , "tailrec"
   , "tuples"
   ]
 , packages = ./packages.dhall
