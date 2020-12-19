@@ -1,9 +1,9 @@
 module BotScriptEnv where
 
-import Prelude
 import BotScript
-import Data.Maybe
 import Data.Boolean
+import Data.Maybe
+import Prelude
 
 import Effect (Effect)
 import Effect.Console (log, logShow)
@@ -37,6 +37,12 @@ assocEnv key (Env e) =
     case FO.lookup key e.tab of
       Just _ -> Just e.tab
       Nothing -> assocEnv key e.root
+
+assocVar name Top = Nothing
+assocVar name (Env e) =
+    case FO.lookup name e.tab of
+      Just val -> Just val
+      Nothing -> assocVar name e.root
 
 foreign import updateTab :: String -> Expr -> Tab -> Boolean
 

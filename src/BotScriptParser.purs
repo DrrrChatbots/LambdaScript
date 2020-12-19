@@ -3,9 +3,8 @@ module BotScriptParser where
 import BotScript
 import Control.Lazy
 import Data.Array
-import Data.List as L
-import Data.List (List)
 import Data.Foldable
+import Data.Function
 import Data.Functor
 import Data.Int
 import Data.Maybe
@@ -18,6 +17,8 @@ import Text.Parsing.Parser.Expr
 
 import Control.Alt ((<|>))
 import Data.Either (Either(..))
+import Data.List (List)
+import Data.List as L
 import Data.String.CodeUnits (fromCharArray, singleton)
 import Effect (Effect)
 import Effect.Console (log)
@@ -95,15 +96,7 @@ bin'op'tab =
 parseExpr = fix $ \self -> do
     buildExprParser bin'op'tab (parseTerm self)
 
-expr'action =
-    [ ("title" /\ Title)
-    , ("descr" /\ Descr)
-    , ("delay" /\ Delay)
-    , ("print" /\ Print)
-    , ("order" /\ Order)
-    {- Going need use identifier -}
-    -- , ("going" /\ Going)
-    ]
+expr'action = ["title", "descr", "print" ,"order"]
 
 parseBinding =
   (parseVar >>= \var ->
@@ -111,11 +104,17 @@ parseBinding =
       parseExpr >>= \expr ->
       pure $ Renew var expr)
 
+parseArgument = fix $ \self ->
+  try (parens $ fromFoldable <$>
+      parseExpr `sepBy` (string ","))
+  <|> (flip (:) []) <$> parseExpr
+
 parseAction = fix $ \self ->
   (choice $
-    map (\(n /\ c) ->
-        c <$> (reserved n *> parseExpr))
+    map (\n ->
+        Invok n <$> (reserved n *> parseArgument))
         expr'action)
+  <|> Delay <$> (reserved "delay" *> parseExpr)
   <|> (do
       _ <- reserved "event"
       name <- parseEtype

@@ -21,6 +21,7 @@ data Expr
   | Str String
   | Num Number
   | Ref Var
+  | Null
 
 instance showExpr :: Show Expr where
   show (Bin o l r)
@@ -36,6 +37,7 @@ instance showExpr :: Show Expr where
   show (Str   s) = show s
   show (Ref   s) = "(Ref " <> show s <> ")"
   show (Arr  xs) = show xs
+  show Null = "Null"
 
 data ETypes
   = Join
@@ -53,15 +55,14 @@ instance showETypes :: Show ETypes where
 type Period = String
 type Rule = String /\ String
 
+
+-- Invok : Title Descr Delay Print Order Going
 data Action
-  = Title Expr
-  | Descr Expr
-  | Delay Expr
-  | Print Expr
-  | Order Expr
-  | Going String
+  = Invok String (Array Expr)
   -- | Cases [...]
   -- | Sleep Period
+  | Delay Expr
+  | Going String
   | Renew Var Expr
   | Timer Period Action
   | Group (List Action)
@@ -71,11 +72,11 @@ data Action
   | Event ETypes (Array Rule) Action
 
 instance showAction :: Show Action where
-  show (Title cont) = "(Title " <> show cont <> ")"
-  show (Descr cont) = "(Descr " <> show cont <> ")"
+  show (Invok name args)
+    = "(Invok "
+    <> show name <> " "
+    <> show args <> ")"
   show (Delay time) = "(Delay " <> show time <> ")"
-  show (Print cont) = "(Print " <> show cont <> ")"
-  show (Order song) = "(Order " <> show song <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"
   show (Renew lval rvalue)
     = "(Renew " <> show lval <> " " <> show rvalue <> ")"
