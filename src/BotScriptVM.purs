@@ -1,16 +1,17 @@
 module BotScriptVM where
 
 import BotScript
-import BotScriptEnv
 import Control.Lazy
 import Data.Array
 import Data.Foldable
 import Data.Functor
 import Data.Maybe
+import Data.Tuple
 import Data.Tuple.Nested
-import DrrrInvok
+import DrrrBot
 import Prelude
 
+import BotScriptEnv as Env
 import Control.Comonad.Env (env)
 import Control.Monad.Rec.Class (Step(..), tailRec, tailRecM, tailRecM2, untilJust, whileJust)
 import Data.List (List(..), (:))
@@ -24,43 +25,61 @@ import Foreign.Object as FO
 -- write state checker
 
 runVM (BotScript actions states) =
-    let env = pushEnv Top in
+    let env = Env.pushEnv Env.Top in
     -- for_ actions (\a -> runAction a states env)
     void <<< Aff.launchAff $
-        tailRecM runActions { as: (actions : Nil), e: env, s:states}
+        tailRecM runActions { as: (actions : Nil), e: env, sn: "", s:states}
 
-runActions {as: Nil, e: env, s: states} = do
+runActions :: { as :: List (List Action)
+                  , e :: Env.Env
+                  , sn :: String
+                  , s :: Array BotState
+                  } -> Aff.Aff (Step
+                        { as :: List (List Action)
+                        , e :: Env.Env
+                        , sn :: String
+                        , s :: Array BotState
+                        }
+                        Unit
+                       )
+
+runActions {as: Nil, e: env, sn: sname, s: states} = do
    liftEffect $ log "wrong"
    pure (Done unit)
 
-runActions {as: (Cons Nil Nil), e: env, s: states} = do
+runActions {as: (Cons Nil Nil), e: env, sn: sname, s: states} = do
    liftEffect $ log "done"
    pure (Done unit)
 
-runActions {as: (Cons Nil rst), e: env, s: states} =
-    let pop'env = popEnv env in
-        pure (Loop {as: rst ,e: pop'env, s: states})
+runActions {as: (Cons Nil rst), e: env, sn: sname, s: states} =
+    let pop'env = Env.popEnv env in
+        pure (Loop {as: rst ,e: pop'env, sn: sname, s: states})
 
-runActions {as: (Cons (Cons a as) ra), e: env, s: states} =
+runActions {as: (Cons (Cons a as) ra), e: env, sn: sname, s: states} =
     case a of
         (Going dest) ->
             case find (\(BotState name _) -> name == dest) states of
               Just (BotState _ new'actions) ->
-                  let top'env = topEnv env in
-                      pure (Loop {as: ((new'actions : Nil) : Nil), e: top'env, s: states})
+                  let top'env = Env.topEnv env in
+                      pure (Loop {as: ((new'actions : Nil) : Nil), e: top'env, sn: dest, s: states})
               Nothing -> do
                   liftEffect <<< log $ "state <" <> dest <> "> not found"
                   pure (Done unit)
 
         (Group actions) ->
             let _ = logShow a
-                new'env = (pushEnv env) in
-            pure (Loop {as: (actions : as : ra), e: new'env, s: states})
+                new'env = (Env.pushEnv env) in
+            pure (Loop {as: (actions : as : ra), e: new'env, sn: sname, s: states})
 
         (Invok name args) -> do
-            -- liftEffect $ logShow a
-            liftEffect $ invok name args
-            pure (Loop {as: (as : ra), e: env, s: states})
+           liftEffect $ invok name args
+           pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
+
+        (Event etype rules action) -> do
+            liftEffect $ logShow a
+            liftEffect $ listen sname etype (map snd rules) (make'event'action rules action sname states env)
+            -- liftEffect $ listen sname etype (map snd rules) fn
+            pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
         action -> do
             case action of
@@ -72,10 +91,9 @@ runActions {as: (Cons (Cons a as) ra), e: env, s: states} =
                (While expr action) -> liftEffect $ logShow a
                (Visit var expr action) -> liftEffect $ logShow a
                (Match expr thn els) -> liftEffect $ logShow a
-               (Event etype rules action) -> liftEffect $ logShow a
                _ -> liftEffect $ log $ "unhandled action: " <> show a
 
-            pure (Loop {as: (as : ra), e: env, s: states})
+            pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
 evalExpr env (Arr array) = Arr $ map (evalExpr env) array
 evalExpr env (Bin op lv rv) =
@@ -96,8 +114,28 @@ evalExpr env (Una op val) =
 
 evalExpr env (Ref (Var name idxs)) =
     -- need handle index
-    case assocVar name env of
+    case Env.assocVar name env of
         Just expr -> expr
         Nothing -> Null
 
 evalExpr env expr = expr
+
+
+bind'event'vars :: (Array String) -> (Array (String /\ String)) -> Env.Env -> Env.Env
+bind'event'vars args rules enviorn =
+  foldr (\((name /\ _) /\ arg) acc ->
+    Env.insert name (Str arg) acc) enviorn (zip rules args)
+
+make'event'action :: Array (Tuple String String) -> Action -> String -> (Array BotState) -> Env.Env -> Array String -> Effect Unit
+
+make'event'action rules action sname states env
+    = \args ->
+        void <<< Aff.launchAff $
+        tailRecM runActions
+        { as: ((action: Nil) : Nil)
+        , e: bind'event'vars args rules env
+        , sn: sname
+        , s: states
+        }
+
+fn xs = log "hello"

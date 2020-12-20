@@ -39,19 +39,6 @@ instance showExpr :: Show Expr where
   show (Arr  xs) = show xs
   show Null = "Null"
 
-data ETypes
-  = Join
-  | Exit
-  | Play
-  | Over
-  | Milk
-  | Talk
-  | Priv
-
-derive instance genericETypes :: Generic ETypes _
-instance showETypes :: Show ETypes where
-  show = genericShow
-
 type Period = String
 type Rule = String /\ String
 
@@ -69,7 +56,7 @@ data Action
   | While Expr Action
   | Visit Var Expr Action
   | Match Expr Action Action
-  | Event ETypes (Array Rule) Action
+  | Event String (Array Rule) Action
 
 instance showAction :: Show Action where
   show (Invok name args)

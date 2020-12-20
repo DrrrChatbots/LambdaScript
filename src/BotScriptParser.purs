@@ -49,17 +49,17 @@ parseArray = fix $ \self ->
       parseExpr `sepBy` (string ","))
 
 event'types =
-    [ ("join" /\ Join)
-    , ("left" /\ Exit)
-    , ("play" /\ Play)
-    , ("over" /\ Over)
-    , ("milk" /\ Milk)
-    , ("talk" /\ Talk)
-    , ("priv" /\ Priv)
+    [ "join"
+    , "left"
+    , "play"
+    , "over"
+    , "milk"
+    , "talk"
+    , "priv"
     ]
 
-parseEtype = choice $ map (\(n /\ c)->
-    (reserved n $> c))
+parseEtype = choice $ map (\n ->
+    reserved n)
     event'types
 
 parsePattern = do
@@ -145,7 +145,6 @@ parseScript = let
     do xs <- many parseScript'
        pure let a /\ s = unzip xs in
            BotScript (L.fromFoldable $ concat a) (concat s)
-
 
 parse p str = runParser str $ p
 

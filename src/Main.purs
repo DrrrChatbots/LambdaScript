@@ -11,41 +11,7 @@ import Data.Foldable (for_)
 import Effect (Effect)
 import Effect.Console (log, logShow)
 
-test :: Array String
-test = ["""
-state main {
-    title "hello"
-    descr "hello world!"
-    delay "20m"
-    print "hello again"
-    order "a song name"
-    going hello
-    x[2] = "asdf"
-    x = 3
-    x = -3.5
-    x = [1,2,3,4]
-    event left (user : "", msg : "^/play") {}
-}
-""", """
-a = 2
-state main {
- a = 2 + 3
-}
-"""]
-
--- main :: (Effect Unit)
--- main = for_ test (\ctx ->
---     parseShow parseScript ctx)
-
--- main = parseShow parseExpr "2 + 3"
-
 ctx = """
-  state hello {
-
-  }
-"""
-
-btx = """
 title "hello"
 x = 3
 state world {
@@ -66,9 +32,12 @@ state world {
 going world
 """
 
-main = case parse parseScript btx of
+execute ctx = case parse parseScript ctx of
     Right script -> runVM script
     Left err -> log ("error: " <> show err)
+
+-- main = log "Welcome to use BotScript"
+main = execute ctx
 
 -- main = case parse parseScript btx of
 --     Right script -> logShow script
