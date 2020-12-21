@@ -1,13 +1,14 @@
 module BotScript where
 
 import Data.Array
-import Data.List as L
-import Data.List (List)
 import Data.Tuple.Nested
 import Prelude
 
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
+import Data.List (List)
+import Data.List as L
+import Effect.Exception (name)
 
 data Var = Var String (Array Expr)
 
@@ -21,6 +22,7 @@ data Expr
   | Str String
   | Num Number
   | Ref Var
+  | Obj (Record (toString :: String))
   | Null
 
 instance showExpr :: Show Expr where
@@ -37,7 +39,32 @@ instance showExpr :: Show Expr where
   show (Str   s) = show s
   show (Ref   s) = "(Ref " <> show s <> ")"
   show (Arr  xs) = show xs
+  show (Obj obj) = obj.toString
   show Null = "Null"
+
+type ConsT =
+    { array :: Array Expr -> Expr
+    , number :: Number -> Expr
+    , object :: { toString :: String
+                }
+                -> Expr
+    , string :: String -> Expr
+    , undefined :: Expr
+    }
+
+type ToExprT = forall a. ConsT -> a -> Expr
+foreign import toExprFFI :: ToExprT
+
+consTab =  { array: Arr
+        , string: Str
+        , number: Num
+        , object: Obj
+        , undefined: Null
+        }
+
+
+toExpr :: forall a. a -> Expr
+toExpr = toExprFFI consTab
 
 type Period = String
 type Rule = String /\ String

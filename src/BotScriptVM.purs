@@ -71,14 +71,14 @@ runActions {as: (Cons (Cons a as) ra), e: env, sn: sname, s: states} =
                 new'env = (Env.pushEnv env) in
             pure (Loop {as: (actions : as : ra), e: new'env, sn: sname, s: states})
 
-        (Invok name args) -> do
-           liftEffect $ invok name args
-           pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
+        (Invok name args) ->
+            let ev'args = map (evalExpr env) args in do
+                liftEffect $ invok name ev'args
+                pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
         (Event etype rules action) -> do
             liftEffect $ logShow a
             liftEffect $ listen sname etype (map snd rules) (make'event'action rules action sname states env)
-            -- liftEffect $ listen sname etype (map snd rules) fn
             pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
         action -> do
@@ -95,38 +95,38 @@ runActions {as: (Cons (Cons a as) ra), e: env, sn: sname, s: states} =
 
             pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
+foreign import evalBin :: forall a. (a -> Expr) -> String -> Expr -> Expr -> Expr
+foreign import evalUna :: forall a. (a -> Expr) -> String -> Expr -> Expr
+foreign import evalRef :: forall a. (a -> Expr) -> Expr -> (Array Expr) -> Expr
+
 evalExpr env (Arr array) = Arr $ map (evalExpr env) array
 evalExpr env (Bin op lv rv) =
-        case op of
-             "/" -> Null
-             "*" -> Null
-             "-" -> Null
-             "+" -> Null
-             "&" -> Null
-             "|" -> Null
-             _ -> Null
+    evalBin toExpr op elv erv where
+          elv = evalExpr env lv
+          erv = evalExpr env rv
 
 evalExpr env (Una op val) =
-    case op of
-        "!" -> Null
-        "-" -> Null
-        _ -> Null
+    evalUna toExpr op ev where
+          ev = evalExpr env val
 
 evalExpr env (Ref (Var name idxs)) =
     -- need handle index
     case Env.assocVar name env of
         Just expr -> expr
         Nothing -> Null
+        where ev'idxs = map (evalExpr env) idxs
 
 evalExpr env expr = expr
-
 
 bind'event'vars :: (Array String) -> (Array (String /\ String)) -> Env.Env -> Env.Env
 bind'event'vars args rules enviorn =
   foldr (\((name /\ _) /\ arg) acc ->
     Env.insert name (Str arg) acc) enviorn (zip rules args)
 
-make'event'action :: Array (Tuple String String) -> Action -> String -> (Array BotState) -> Env.Env -> Array String -> Effect Unit
+make'event'action ::
+    Array (Tuple String String) ->
+    Action -> String -> (Array BotState) ->
+    Env.Env -> Array String -> Effect Unit
 
 make'event'action rules action sname states env
     = \args ->
@@ -137,5 +137,3 @@ make'event'action rules action sname states env
         , sn: sname
         , s: states
         }
-
-fn xs = log "hello"

@@ -15,7 +15,7 @@ ctx = """
 title "hello"
 x = 3
 state world {
-    title "hello"
+    title "hello" + " world"
     descr "hello world!"
     delay "20m"
     print "hello again"

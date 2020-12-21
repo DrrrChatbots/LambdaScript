@@ -1,4 +1,5 @@
 exports.invok = sym => args => () => {
+  invok_map_test[sym].apply(null, args.map((x)=>x['value0']))
   //invok_map[sym].apply(null, args.map((x)=>x['value0']))
   console.log(`Invok ${sym} ${JSON.stringify(args.map((x)=>x['value0']))}`);
 }
@@ -70,5 +71,20 @@ invok_map = {
         args: { msg: msg }
       }), idx
     ), 1000);
+  }
+}
+
+invok_map_test = {
+  'title': function(msg){
+    console.log(`title ${msg}`);
+  },
+  'descr': function(msg){
+    console.log(`descr ${msg}`);
+  },
+  'print': function(msg){
+    console.log(`print ${msg}`);
+  },
+  'order': function(keyword, p1, p2){
+    console.log(`order ${keyword} ${p1} ${p2}`);
   }
 }

@@ -88,8 +88,8 @@ bin'op'tab =
     , [Infix (Bin <$> reserved "*") AssocLeft]
     , [Infix (Bin <$> reserved "-") AssocLeft]
     , [Infix (Bin <$> reserved "+") AssocLeft]
-    , [Infix (Bin <$> reserved "&") AssocRight]
-    , [Infix (Bin <$> reserved "|") AssocRight]
+    , [Infix (Bin <$> reserved "&&") AssocRight]
+    , [Infix (Bin <$> reserved "||") AssocRight]
     ]
 
 -- try to prevent consume input
