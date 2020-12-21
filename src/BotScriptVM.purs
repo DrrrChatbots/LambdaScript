@@ -81,13 +81,28 @@ runActions {as: (Cons (Cons a as) ra), e: env, sn: sname, s: states} =
             liftEffect $ listen sname etype (map snd rules) (make'event'action rules action sname states env)
             pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
+        (Renew (Var name []) expr) ->
+           let ev'expr = evalExpr env expr
+               nenv = Env.insert env name ev'expr in do
+               liftEffect $ logShow a
+               pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
+
+        (Renew (Var name idxs) expr) ->
+           let ev'expr = evalExpr env expr
+               ev'idxs = map (evalExpr env) idxs in do
+            case Env.assocEnv name env of
+                Nothing -> liftEffect $
+                     log (show a <> " var not found")
+                Just tab -> liftEffect $
+                     Env.updateTabRef tab name ev'idxs ev'expr
+            pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
+
         action -> do
             case action of
                -- builtins
                (Delay expr) -> do
                   liftEffect $ logShow a
                   Aff.delay (Milliseconds 1000.0)
-               (Renew var expr) -> liftEffect $ logShow a
                (While expr action) -> liftEffect $ logShow a
                (Visit var expr action) -> liftEffect $ logShow a
                (Match expr thn els) -> liftEffect $ logShow a
@@ -121,7 +136,7 @@ evalExpr env expr = expr
 bind'event'vars :: (Array String) -> (Array (String /\ String)) -> Env.Env -> Env.Env
 bind'event'vars args rules enviorn =
   foldr (\((name /\ _) /\ arg) acc ->
-    Env.insert name (Str arg) acc) enviorn (zip rules args)
+    Env.insert acc name (Str arg)) enviorn (zip rules args)
 
 make'event'action ::
     Array (Tuple String String) ->

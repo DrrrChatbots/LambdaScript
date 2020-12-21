@@ -12,11 +12,15 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
-
 title "hello"
-x = 3
+x = "hello"
 y = true
 state world {
+    title "hello"
+    title true
+}
+x[2] = 3
+state fuck {
     title true
     title "hello" + " world"
     descr "hello world!"
@@ -39,9 +43,10 @@ execute ctx = case parse parseScript ctx of
     Right script -> runVM script
     Left err -> log ("error: " <> show err)
 
--- main = log "Welcome to use BotScript"
-main = execute ctx
+compile ctx = case parse parseScript ctx of
+    Right script -> logShow script
+    Left err -> log ("error: " <> show err)
 
--- main = case parse parseScript btx of
---     Right script -> logShow script
---     Left err -> log ("error: " <> show err)
+-- main = log "Welcome to use BotScript"
+-- main = execute ctx
+main = compile ctx

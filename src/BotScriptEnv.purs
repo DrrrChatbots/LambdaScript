@@ -44,17 +44,18 @@ assocVar name (Env e) =
       Just val -> Just val
       Nothing -> assocVar name e.root
 
-foreign import updateTab :: String -> Expr -> Tab -> Boolean
+foreign import updateTab :: Tab -> String -> Expr -> Boolean
+foreign import updateTabRef :: Tab -> String -> (Array Expr) -> Expr -> Effect Unit
 
 {- update existed value only -}
-update _ _ Top = false
-update key val env =
+update Top _ _ = false
+update env key val =
     case assocEnv key env of
-        Just tab -> updateTab key val tab
+        Just tab -> updateTab tab key val
         Nothing -> false
 
 {- insert/update a new value only -}
-insert :: String -> Expr -> Env -> Env
-insert key val Top = Top
-insert key val env@(Env e) = let
-    a = updateTab key val e.tab in env
+insert :: Env -> String -> Expr -> Env
+insert Top key val = Top
+insert env@(Env e) key val = let
+    a = updateTab e.tab key val in env

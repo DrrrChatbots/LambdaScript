@@ -41,7 +41,6 @@ exports.evalUna = toExpr => op => val => {
 exports.evalRef = toExpr => val => idxs => {
   val = val['value0'];
   idxs = idxs.map((x)=>x['value0']);
-
   for(var key of idxs){
     if(!val) return toExpr(val);
     val = val[key];
