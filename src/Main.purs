@@ -12,9 +12,12 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
+
 title "hello"
 x = 3
+y = true
 state world {
+    title true
     title "hello" + " world"
     descr "hello world!"
     delay "20m"

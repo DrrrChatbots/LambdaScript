@@ -35,6 +35,10 @@ parseIdentifier = (whiteSpace *> tokParser.identifier)
 parseStringLiteral = (whiteSpace *> tokParser.stringLiteral)
 reserved xs = try (whiteSpace *> string xs)
 
+parseBoolean = whiteSpace *>
+    (reserved "true" *> pure true)
+    <|> (reserved "false" *> pure false)
+
 parseNumber = whiteSpace *>
     (try tokParser.float
     <|> try (toNumber <$> tokParser.integer))
@@ -78,12 +82,23 @@ parseTerm p = choice
     , try parseArray
     , try (Str <$> parseStringLiteral)
     , try (Num <$> parseNumber)
+    , try (Tfv <$> parseBoolean)
     , try (Ref <$> parseVar)
     ]
 
 bin'op'tab =
     [ [Prefix (Una <$> reserved "-")]
     , [Prefix (Una <$> reserved "!")]
+    , [Infix (Bin <$> reserved "<") AssocLeft]
+    , [Infix (Bin <$> reserved "<=") AssocLeft]
+    , [Infix (Bin <$> reserved ">") AssocLeft]
+    , [Infix (Bin <$> reserved ">=") AssocLeft]
+    -- consider support in operator
+    , [Infix (Bin <$> reserved "in") AssocLeft]
+    , [Infix (Bin <$> reserved "==") AssocLeft]
+    , [Infix (Bin <$> reserved "!=") AssocLeft]
+    , [Infix (Bin <$> reserved "===") AssocLeft]
+    , [Infix (Bin <$> reserved "!==") AssocLeft]
     , [Infix (Bin <$> reserved "/") AssocLeft]
     , [Infix (Bin <$> reserved "*") AssocLeft]
     , [Infix (Bin <$> reserved "-") AssocLeft]

@@ -21,6 +21,7 @@ data Expr
   | Una String Expr
   | Str String
   | Num Number
+  | Tfv Boolean
   | Ref Var
   | Obj (Record (toString :: String))
   | Null
@@ -35,6 +36,7 @@ instance showExpr :: Show Expr where
     = "(Una "
     <> show o <> " "
     <> show e <> ")"
+  show (Tfv   b) = show b
   show (Num   n) = show n
   show (Str   s) = show s
   show (Ref   s) = "(Ref " <> show s <> ")"
@@ -45,6 +47,7 @@ instance showExpr :: Show Expr where
 type ConsT =
     { array :: Array Expr -> Expr
     , number :: Number -> Expr
+    , boolean :: Boolean -> Expr
     , object :: { toString :: String
                 }
                 -> Expr
@@ -58,6 +61,7 @@ foreign import toExprFFI :: ToExprT
 consTab =  { array: Arr
         , string: Str
         , number: Num
+        , boolean: Tfv
         , object: Obj
         , undefined: Null
         }

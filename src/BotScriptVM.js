@@ -8,6 +8,22 @@ exports.evalBin = toExpr => op => lval => rval => {
     return toExpr(lval + rval);
   else if(op == '-')
     return toExpr(lval - rval);
+  else if(op == '>')
+    return toExpr(lval > rval);
+  else if(op == '>=')
+    return toExpr(lval >= rval);
+  else if(op == '<')
+    return toExpr(lval < rval);
+  else if(op == '<=')
+    return toExpr(lval <= rval);
+  else if(op == '==')
+    return toExpr(lval == rval);
+  else if(op == '!=')
+    return toExpr(lval != rval);
+  else if(op == '===')
+    return toExpr(lval === rval);
+  else if(op == '!==')
+    return toExpr(lval !== rval);
   else if(op == '&&')
     return toExpr(lval && rval);
   else if(op == '||')
