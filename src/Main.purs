@@ -48,5 +48,5 @@ compile ctx = case parse parseScript ctx of
     Left err -> log ("error: " <> show err)
 
 -- main = log "Welcome to use BotScript"
--- main = execute ctx
-main = compile ctx
+-- main = compile ctx
+main = execute "`console.log -1"

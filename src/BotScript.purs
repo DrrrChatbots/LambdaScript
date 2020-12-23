@@ -76,7 +76,7 @@ type Rule = String /\ String
 
 -- Invok : Title Descr Delay Print Order Going
 data Action
-  = Invok String (Array Expr)
+  = Invok (Array String) (Array Expr)
   -- | Cases [...]
   -- | Sleep Period
   | Delay Expr
@@ -90,9 +90,9 @@ data Action
   | Event String (Array Rule) Action
 
 instance showAction :: Show Action where
-  show (Invok name args)
+  show (Invok names args)
     = "(Invok "
-    <> show name <> " "
+    <> show names <> " "
     <> show args <> ")"
   show (Delay time) = "(Delay " <> show time <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"

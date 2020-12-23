@@ -45,5 +45,5 @@ exports.evalRef = toExpr => val => idxs => {
     if(!val) return toExpr(val);
     val = val[key];
   }
-  return toExpr(val);
+  return val['value0'] ? val : toExpr(val);
 }

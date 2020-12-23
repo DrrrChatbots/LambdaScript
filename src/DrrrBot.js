@@ -1,7 +1,67 @@
-exports.invok = sym => args => () => {
-  invok_map_test[sym].apply(null, args.map((x)=>x['value0']))
-  //invok_map[sym].apply(null, args.map((x)=>x['value0']))
-  console.log(`Invok ${sym} ${JSON.stringify(args.map((x)=>x['value0']))}`);
+
+builtins = {
+  'title': function(msg){
+    sendTab({ fn: publish_message, args: { msg: msg} });
+  },
+  'descr': function(msg){
+    sendTab({ fn: publish_message, args: { msg: msg} });
+  },
+  'print': function(msg){
+    sendTab({ fn: publish_message, args: { msg: msg} });
+  },
+  'order': function(keyword, p1, p2){
+    var idx = undefined, source = undefined;
+    if(p1){ if(p1 in api) source = p1; else idx = p1; }
+    if(p2){ if(p2 in api) source = p2; else idx = p2; }
+    console.log(`play music[${source}][${idx}]: ${keyword}`);
+    setTimeout(()=> play_search(
+      get_music.bind(null, keyword, source),
+      (msg) => sendTab({
+        fn: publish_message,
+        args: { msg: msg }
+      }), idx
+    ), 1000);
+  }
+}
+
+builtins_test = {
+  'title': function(msg){
+    console.log(`title ${JSON.stringify(msg)}`);
+  },
+  'descr': function(msg){
+    console.log(`descr ${JSON.stringify(msg)}`);
+  },
+  'print': function(msg){
+  //builtins_test[sym].apply(null, args.map((x)=>x['value0']))
+    console.log(`print ${JSON.stringify(msg)}`);
+  },
+  'order': function(keyword, p1, p2){
+    console.log(`order ${JSON.stringify(msg)}`);
+  }
+}
+
+var functions = builtins_test
+
+exports.invok = syms => args => () => {
+  //builtins_test[sym].apply(null, args.map((x)=>x['value0']))
+  if(syms.length == 1 && functions[syms[0]])
+    functions[syms].apply(null, args.map((x)=>x['value0']))
+  else
+    invokExternal(globalThis)(syms).apply(
+      null, args.map((x)=>x['value0']))
+  console.log(`Invok ${syms} ${JSON.stringify(args)}`);
+}
+
+invokExternal = namespace => syms => {
+  var f = namespace;
+  console.log(syms)
+  for(var key of syms){
+    console.log(f);
+    if(!f)
+    return () => console.log(`cannot find function ${syms}`)
+    f = f[key];
+  }
+  return f;
 }
 
 exports.cur = ""
@@ -14,7 +74,7 @@ function padArray(array, length, fill){
 }
 
 exports.listen = state => type => args => next => () => {
-  //invok_map[sym].apply(null, args.map((x)=>x['value0']))
+  //builtins[sym].apply(null, args.map((x)=>x['value0']))
   exports.events[state] = exports.events[state] || [];
 
   [user_regex, cont_regex] = padArray(args);
@@ -49,42 +109,3 @@ function event_action(event, config, req){
   });
 }
 
-invok_map = {
-  'title': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
-  },
-  'descr': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
-  },
-  'print': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
-  },
-  'order': function(keyword, p1, p2){
-    var idx = undefined, source = undefined;
-    if(p1){ if(p1 in api) source = p1; else idx = p1; }
-    if(p2){ if(p2 in api) source = p2; else idx = p2; }
-    console.log(`play music[${source}][${idx}]: ${keyword}`);
-    setTimeout(()=> play_search(
-      get_music.bind(null, keyword, source),
-      (msg) => sendTab({
-        fn: publish_message,
-        args: { msg: msg }
-      }), idx
-    ), 1000);
-  }
-}
-
-invok_map_test = {
-  'title': function(msg){
-    console.log(`title ${msg}`);
-  },
-  'descr': function(msg){
-    console.log(`descr ${msg}`);
-  },
-  'print': function(msg){
-    console.log(`print ${msg}`);
-  },
-  'order': function(keyword, p1, p2){
-    console.log(`order ${keyword} ${p1} ${p2}`);
-  }
-}

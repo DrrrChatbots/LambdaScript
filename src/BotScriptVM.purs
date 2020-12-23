@@ -71,9 +71,9 @@ runActions {as: (Cons (Cons a as) ra), e: env, sn: sname, s: states} =
                 new'env = (Env.pushEnv env) in
             pure (Loop {as: (actions : as : ra), e: new'env, sn: sname, s: states})
 
-        (Invok name args) ->
+        (Invok func args) ->
             let ev'args = map (evalExpr env) args in do
-                liftEffect $ invok name ev'args
+                liftEffect $ invok func ev'args
                 pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
         (Event etype rules action) -> do
@@ -127,7 +127,7 @@ evalExpr env (Una op val) =
 evalExpr env (Ref (Var name idxs)) =
     -- need handle index
     case Env.assocVar name env of
-        Just expr -> expr
+        Just expr -> evalRef toExpr expr idxs
         Nothing -> Null
         where ev'idxs = map (evalExpr env) idxs
 

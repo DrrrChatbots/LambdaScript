@@ -3,6 +3,7 @@ module BotScriptParser where
 import BotScript
 import Control.Lazy
 import Data.Array
+import Data.Identity
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -23,13 +24,11 @@ import Data.String.CodeUnits (fromCharArray, singleton)
 import Effect (Effect)
 import Effect.Console (log)
 import Text.Parsing.Parser (runParser)
-
 import Text.Parsing.Parser.Language (emptyDef)
-import Text.Parsing.Parser.Token (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter)
-
 import Text.Parsing.Parser.String (anyChar, char, eof, satisfy, string)
-import Text.Parsing.Parser.Token (makeTokenParser)
 import Text.Parsing.Parser.String (char, oneOf)
+import Text.Parsing.Parser.Token (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter)
+import Text.Parsing.Parser.Token (makeTokenParser)
 
 customStyle :: LanguageDef
 customStyle = LanguageDef (unGenLanguageDef emptyDef)
@@ -154,12 +153,18 @@ parseArgument = fix $ \self ->
       parseExpr `sepBy` (string ","))
   <|> (flip (:) []) <$> parseExpr
 
+parseAction::ParserT String Identity Action
 parseAction = fix $ \self ->
   ((choice $
     map (\n ->
-        Invok n <$> (reserved n *> parseArgument))
+        Invok [n] <$> (reserved n *> parseArgument))
         expr'action)
   <|> Delay <$> (reserved "delay" *> parseExpr)
+  <|> (do
+        _ <- symbol "`"
+        name <- parseIdentifier `sepBy` (string ".")
+        args <- parseArgument
+        pure (Invok (fromFoldable name) args))
   <|> (do
       reserved "event"
       name <- parseEtype
