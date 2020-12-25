@@ -11,6 +11,7 @@ import Data.Tuple.Nested
 import DrrrBot
 import Prelude
 
+import Undefined (undefined)
 import BotScriptEnv as Env
 import Control.Comonad.Env (env)
 import Control.Monad.Rec.Class (Step(..), tailRec, tailRecM, tailRecM2, untilJust, whileJust)
@@ -110,33 +111,44 @@ runActions {as: (Cons (Cons a as) ra), e: env, sn: sname, s: states} =
 
             pure (Loop {as: (as : ra), e: env, sn: sname, s: states})
 
-foreign import evalBin :: forall a. (a -> Expr) -> String -> Expr -> Expr -> Expr
-foreign import evalUna :: forall a. (a -> Expr) -> String -> Expr -> Expr
-foreign import evalRef :: forall a. (a -> Expr) -> Expr -> (Array Expr) -> Expr
+foreign import evalBin :: String -> Term -> Term -> Term
+foreign import evalUna :: String -> Term -> Term
+foreign import evalRef :: Term -> (Array Term) -> Term
+foreign import evalFun :: (Array String) -> (Array Term) -> Term
 
-evalExpr env (Arr array) = Arr $ map (evalExpr env) array
+
+evalExpr :: Env.Env -> Expr -> Term
+evalExpr env (Arr array) =
+    toTerm "Array" $ map (evalExpr env) array
+
 evalExpr env (Bin op lv rv) =
-    evalBin toExpr op elv erv where
+    evalBin op elv erv where
           elv = evalExpr env lv
           erv = evalExpr env rv
 
 evalExpr env (Una op val) =
-    evalUna toExpr op ev where
+    evalUna op ev where
           ev = evalExpr env val
+
+evalExpr env (Fun names args) =
+    evalFun names ev where
+          ev = map (evalExpr env) args
 
 evalExpr env (Ref (Var name idxs)) =
     -- need handle index
     case Env.assocVar name env of
-        Just expr -> evalRef toExpr expr idxs
-        Nothing -> Null
+        Just term -> evalRef term ev'idxs
+        Nothing -> toTerm "Number" "0"
         where ev'idxs = map (evalExpr env) idxs
 
-evalExpr env expr = expr
+evalExpr env (Trm term) = term
+
 
 bind'event'vars :: (Array String) -> (Array (String /\ String)) -> Env.Env -> Env.Env
 bind'event'vars args rules enviorn =
   foldr (\((name /\ _) /\ arg) acc ->
-    Env.insert acc name (Str arg)) enviorn (zip rules args)
+    Env.insert acc name (toTerm "String" arg)) enviorn (zip rules args)
+    -- TODO: consider valueOf
 
 make'event'action ::
     Array (Tuple String String) ->

@@ -1,6 +1,8 @@
 module BotScriptEnv where
 
 import BotScript
+
+import Undefined (undefined)
 import Data.Boolean
 import Data.Maybe
 import Prelude
@@ -9,7 +11,11 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 import Foreign.Object as FO
 
-type Tab = FO.Object Expr
+type Tab = FO.Object Term
+
+showTab tab = "{\n" <> FO.fold (\acc key val -> acc <> ", " <> key <> ": " <> val.toString undefined <> "\n") "" tab <> "}"
+
+
 data Env = Env {lv:: Int, tab :: Tab, root :: Env} | Top
 
 instance showEnv :: Show Env where
@@ -17,7 +23,7 @@ instance showEnv :: Show Env where
   show (Env e)
     = show e.root <> "\n"
     <> show e.lv <> " "
-    <> show e.tab
+    <> showTab e.tab
 
 pushEnv Top = Env {lv: 0, tab: FO.fromFoldable [], root: Top}
 pushEnv env@(Env e)
@@ -44,8 +50,8 @@ assocVar name (Env e) =
       Just val -> Just val
       Nothing -> assocVar name e.root
 
-foreign import updateTab :: Tab -> String -> Expr -> Boolean
-foreign import updateTabRef :: Tab -> String -> (Array Expr) -> Expr -> Effect Unit
+foreign import updateTab :: Tab -> String -> Term -> Boolean
+foreign import updateTabRef :: Tab -> String -> (Array Term) -> Term -> Effect Unit
 
 {- update existed value only -}
 update Top _ _ = false
@@ -55,7 +61,7 @@ update env key val =
         Nothing -> false
 
 {- insert/update a new value only -}
-insert :: Env -> String -> Expr -> Env
+insert :: Env -> String -> Term -> Env
 insert Top key val = Top
 insert env@(Env e) key val = let
     a = updateTab e.tab key val in env

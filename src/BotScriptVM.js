@@ -1,49 +1,62 @@
-exports.evalBin = toExpr => op => lval => rval => {
-  [lval, rval] = [lval, rval].map((x)=>x['value0']);
-  if(op == "/")
-    return toExpr(lval / rval);
+exports.evalBin = op => lval => rval => {
+  if(op == "%")
+    return Object(lval % rval);
+  else if(op == "/")
+    return Object(lval / rval);
   else if(op == '*')
-    return toExpr(lval * rval);
+    return Object(lval * rval);
   else if(op == '+')
-    return toExpr(lval + rval);
+    return Object(lval + rval);
   else if(op == '-')
-    return toExpr(lval - rval);
+    return Object(lval - rval);
   else if(op == '>')
-    return toExpr(lval > rval);
+    return Object(lval > rval);
   else if(op == '>=')
-    return toExpr(lval >= rval);
+    return Object(lval >= rval);
   else if(op == '<')
-    return toExpr(lval < rval);
+    return Object(lval < rval);
   else if(op == '<=')
-    return toExpr(lval <= rval);
+    return Object(lval <= rval);
   else if(op == '==')
-    return toExpr(lval == rval);
+    return Object(lval == rval);
   else if(op == '!=')
-    return toExpr(lval != rval);
+    return Object(lval != rval);
   else if(op == '===')
-    return toExpr(lval === rval);
+    return Object(lval === rval);
   else if(op == '!==')
-    return toExpr(lval !== rval);
+    return Object(lval !== rval);
   else if(op == '&&')
-    return toExpr(lval && rval);
+    return Object(lval && rval);
   else if(op == '||')
-    return toExpr(lval || rval);
+    return Object(lval || rval);
 }
 
-exports.evalUna = toExpr => op => val => {
-  val = val['value0'];
+exports.evalUna = op => val => {
   if(op == "!")
-    return toExpr(!val);
+    return Object(!val);
   else if(op == '-')
-    return toExpr(-val);
+    return Object(-val);
 }
 
-exports.evalRef = toExpr => val => idxs => {
-  val = val['value0'];
-  idxs = idxs.map((x)=>x['value0']);
+exports.evalRef = val => idxs => {
   for(var key of idxs){
-    if(!val) return toExpr(val);
+    if(!val) return Object(val);
     val = val[key];
   }
-  return val['value0'] ? val : toExpr(val);
+  return val['value0'] ? val : Object(val);
+}
+
+exports.evalFun = syms => args => {
+  val = invokFunction(globalThis)(syms).apply(null, args);
+  return val === undefined ? "unit" : val;
+}
+
+invokFunction = namespace => syms => {
+  var f = namespace;
+  for(var key of syms){
+    if(!f)
+    return () => console.log(`cannot find function ${syms}`)
+    f = f[key];
+  }
+  return f;
 }

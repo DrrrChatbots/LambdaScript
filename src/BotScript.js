@@ -1,3 +1,12 @@
+exports.toTerm =
+  constructorName =>
+  literal => {
+    if(constructorName == "Array"){
+      return Object(literal);
+    }
+    return Object(globalThis[constructorName](literal));
+  }
+
 exports.toExprFFI = constructors => val => {
   if(constructors[typeof(val)])
     return constructors[typeof(val)](val);

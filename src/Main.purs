@@ -12,6 +12,8 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
+f = 5 % 3
+print f
 title "hello"
 x = "hello"
 y = true
@@ -22,6 +24,7 @@ state world {
 x[2] = 3
 state fuck {
     title true
+    title -1
     title "hello" + " world"
     descr "hello world!"
     delay "20m"
@@ -49,4 +52,5 @@ compile ctx = case parse parseScript ctx of
 
 -- main = log "Welcome to use BotScript"
 -- main = compile ctx
-main = execute "`console.log -1"
+main = execute ctx
+-- main = execute "`console.log -1"

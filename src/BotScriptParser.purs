@@ -45,7 +45,6 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                 , caseSensitive   = false
                 }
 
-
 tokParser = makeTokenParser customStyle
 whiteSpace = tokParser.whiteSpace
 parens p = whiteSpace *> tokParser.parens p
@@ -100,9 +99,14 @@ parseRules = fix $ \self ->
 
 parseTerm p = choice
     [ parseArray
-    , (Str <$> parseStringLiteral)
-    , (Num <$> parseNumber)
-    , (Tfv <$> parseBoolean)
+    , (Trm <<< toTerm "String" <$> parseStringLiteral)
+    , (Trm <<< toTerm "Number" <$> parseNumber)
+    , (Trm <<< toTerm "Boolean" <$> parseBoolean)
+    , (do
+        _ <- symbol "`"
+        name <- parseIdentifier `sepBy` (string ".")
+        args <- parseArgument
+        pure (Fun (fromFoldable name) args))
     , (Ref <$> parseVar)
     ,  parens p
     ]
@@ -121,6 +125,7 @@ bin'op'tab =
     , [Infix (Bin <$> symbol "===") AssocLeft]
     , [Infix (Bin <$> symbol "!==") AssocLeft]
     , [Infix (Bin <$> symbol "/") AssocLeft]
+    , [Infix (Bin <$> symbol "%") AssocLeft]
     , [Infix (Bin <$> symbol "*") AssocLeft]
     , [Infix (Bin <$> symbol "-") AssocLeft]
     , [Infix (Bin <$> symbol "+") AssocLeft]

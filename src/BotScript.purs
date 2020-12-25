@@ -1,5 +1,6 @@
 module BotScript where
 
+import Undefined (undefined)
 import Data.Array
 import Data.Tuple.Nested
 import Prelude
@@ -8,10 +9,10 @@ import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.List (List)
 import Data.List as L
+import Effect (Effect)
 import Effect.Exception (name)
 
 data Var = Var String (Array Expr)
-
 instance showVar :: Show Var where
   show (Var s ns) = "(Var " <> show s <> " " <> show ns <> ")"
 
@@ -19,14 +20,17 @@ data Expr
   = Arr (Array Expr)
   | Bin String Expr Expr
   | Una String Expr
-  | Str String
-  | Num Number
-  | Tfv Boolean
   | Ref Var
-  | Obj (Record (toString :: String))
-  | Null
+  | Fun (Array String) (Array Expr)
+  | Trm Term
+
+type Term = (Record (toString :: (forall a. a) -> String))
+
+
+foreign import toTerm :: forall a. String -> a -> Term
 
 instance showExpr :: Show Expr where
+  show (Arr  xs) = show xs
   show (Bin o l r)
     = "(Bin "
     <> show o <> " "
@@ -36,43 +40,15 @@ instance showExpr :: Show Expr where
     = "(Una "
     <> show o <> " "
     <> show e <> ")"
-  show (Tfv   b) = show b
-  show (Num   n) = show n
-  show (Str   s) = show s
+  show (Fun names args)
+    = "(Fun "
+    <> show names <> " "
+    <> show args <> ")"
   show (Ref   s) = "(Ref " <> show s <> ")"
-  show (Arr  xs) = show xs
-  show (Obj obj) = obj.toString
-  show Null = "Null"
-
-type ConsT =
-    { array :: Array Expr -> Expr
-    , number :: Number -> Expr
-    , boolean :: Boolean -> Expr
-    , object :: { toString :: String
-                }
-                -> Expr
-    , string :: String -> Expr
-    , undefined :: Expr
-    }
-
-type ToExprT = forall a. ConsT -> a -> Expr
-foreign import toExprFFI :: ToExprT
-
-consTab =  { array: Arr
-        , string: Str
-        , number: Num
-        , boolean: Tfv
-        , object: Obj
-        , undefined: Null
-        }
-
-
-toExpr :: forall a. a -> Expr
-toExpr = toExprFFI consTab
+  show (Trm   term) = term.toString undefined
 
 type Period = String
 type Rule = String /\ String
-
 
 -- Invok : Title Descr Delay Print Order Going
 data Action

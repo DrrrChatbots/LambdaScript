@@ -45,18 +45,16 @@ var functions = builtins_test
 exports.invok = syms => args => () => {
   //builtins_test[sym].apply(null, args.map((x)=>x['value0']))
   if(syms.length == 1 && functions[syms[0]])
-    functions[syms].apply(null, args.map((x)=>x['value0']))
+    functions[syms].apply(null, args)
   else
     invokExternal(globalThis)(syms).apply(
-      null, args.map((x)=>x['value0']))
+      null, args)
   console.log(`Invok ${syms} ${JSON.stringify(args)}`);
 }
 
 invokExternal = namespace => syms => {
   var f = namespace;
-  console.log(syms)
   for(var key of syms){
-    console.log(f);
     if(!f)
     return () => console.log(`cannot find function ${syms}`)
     f = f[key];
