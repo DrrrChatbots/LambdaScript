@@ -12,16 +12,18 @@ import Data.List as L
 import Effect (Effect)
 import Effect.Exception (name)
 
-data Var = Var String (Array Expr)
-instance showVar :: Show Var where
-  show (Var s ns) = "(Var " <> show s <> " " <> show ns <> ")"
+-- data Var = Var String (Array Expr)
+-- instance showVar :: Show Var where
+--   show (Var s ns) = "(Var " <> show s <> " " <> show ns <> ")"
 
 data Expr
   = Arr (Array Expr)
   | Bin String Expr Expr
   | Una String Expr
-  | Ref Var
-  | Fun (Array String) (Array Expr)
+  | Var String
+  | Sub Expr Expr
+  | Dot Expr String
+  | Fun Expr (Array Expr)
   | Trm Term
 
 type Term = (Record (toString :: (forall a. a) -> String))
@@ -40,36 +42,38 @@ instance showExpr :: Show Expr where
     = "(Una "
     <> show o <> " "
     <> show e <> ")"
-  show (Fun names args)
+  show (Fun expr args)
     = "(Fun "
-    <> show names <> " "
+    <> show expr <> " "
     <> show args <> ")"
-  show (Ref   s) = "(Ref " <> show s <> ")"
+  show (Dot expr attr)
+    = show expr <> "." <> show attr
+  show (Sub expr sub)
+    = show expr <> "[" <> show sub <> "]"
+  show (Var   s) = "(Var " <> show s <> ")"
   show (Trm   term) = term.toString undefined
 
 type Period = String
 type Rule = String /\ String
 
--- Invok : Title Descr Delay Print Order Going
+-- Value : Title Descr Delay Print Order Going
 data Action
-  = Invok (Array String) (Array Expr)
+  = Value Expr
   -- | Cases [...]
   -- | Sleep Period
   | Delay Expr
   | Going String
-  | Renew Var Expr
+  | Renew Expr Expr -- note lval
   | Timer Period Action
   | Group (List Action)
   | While Expr Action
-  | Visit Var Expr Action
+  | Visit Expr Expr Action -- note var
   | Match Expr Action Action
   | Event String (Array Rule) Action
 
 instance showAction :: Show Action where
-  show (Invok names args)
-    = "(Invok "
-    <> show names <> " "
-    <> show args <> ")"
+  show (Value expr)
+    = "(Value " <> show expr <> ")"
   show (Delay time) = "(Delay " <> show time <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"
   show (Renew lval rvalue)

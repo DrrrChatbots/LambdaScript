@@ -38,25 +38,46 @@ exports.evalUna = op => val => {
     return Object(-val);
 }
 
-exports.evalRef = val => idxs => {
-  for(var key of idxs){
-    if(!val) return Object(val);
-    val = val[key];
-  }
-  return val['value0'] ? val : Object(val);
-}
+exports.evalFun = obj => name => args => {
 
-exports.evalFun = syms => args => {
-  val = invokFunction(globalThis)(syms).apply(null, args);
-  return val === undefined ? "unit" : val;
+  //console.log("call => ", obj, name, args);
+
+  if(!name && typeof(obj) == 'function'){
+    val = obj.apply(null, args);
+  }
+  else if(obj && obj[name]){
+    val = obj[name].apply(obj, args);
+  }
+  else val = undefined;
+
+  //console.log("val = ", val);
+
+  return val === undefined || val == null ? {} : val;
 }
 
 invokFunction = namespace => syms => {
   var f = namespace;
   for(var key of syms){
-    if(!f)
-    return () => console.log(`cannot find function ${syms}`)
+    if(!f){
+      console.log(`cannot find function ${syms}`)
+      return undefined;
+    }
     f = f[key];
   }
   return f;
+}
+
+exports.memberOf = obj => name => {
+  val = obj[name];
+  return val === undefined || val == null ? {} : val;
+}
+
+exports.updMem = obj => name => val => () => {
+  obj[name] = val;
+}
+
+exports.none = () => Object()
+
+exports.print = obj => () => {
+  console.log("this", obj, typeof(obj));
 }

@@ -12,34 +12,35 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
-f = 5 % 3
-print f
-title "hello"
-x = "hello"
-y = true
+going test
+state test {
+    Math = [1,2,3,4]
+    Math.line = 4
+    print(Math)
+    print(Math.line)
+}
 state world {
-    title "hello"
-    title true
+    title("hello")
+    title(true   )
 }
 x[2] = 3
 state fuck {
-    title true
-    title -1
-    title "hello" + " world"
-    descr "hello world!"
-    delay "20m"
-    print "hello again"
-    delay "20m"
-    order "a song name"
-    delay "20m"
+    title(true)
+    title(-1)
+    title("hello" + " world")
+    descr("hello world!")
+    delay("20m")
+    print("hello again")
+    delay("20m")
+    order("a song name")
+    delay("20m")
     x[2] = "asdf"
     x = 3
     x = -3.5
     x = [1,2,3,4]
     event left (user : "", msg : "^/play") {}
-    going world
+    going fuck
 }
-going world
 """
 
 execute ctx = case parse parseScript ctx of
@@ -51,6 +52,6 @@ compile ctx = case parse parseScript ctx of
     Left err -> log ("error: " <> show err)
 
 -- main = log "Welcome to use BotScript"
--- main = compile ctx
 main = execute ctx
+-- main = execute ctx
 -- main = execute "`console.log -1"

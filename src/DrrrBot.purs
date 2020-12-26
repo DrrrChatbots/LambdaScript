@@ -11,5 +11,5 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 import Foreign.Object as FO
 
-foreign import invok :: (Array String) -> (Array Term) -> Effect Unit
+foreign import invok :: forall a. a -> (Array String) -> (Array Term) -> Effect Unit
 foreign import listen :: String -> String -> (Array String) -> (Array String -> Effect Unit) -> Effect Unit

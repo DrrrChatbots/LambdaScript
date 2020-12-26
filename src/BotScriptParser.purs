@@ -3,10 +3,10 @@ module BotScriptParser where
 import BotScript
 import Control.Lazy
 import Data.Array
-import Data.Identity
 import Data.Foldable
 import Data.Function
 import Data.Functor
+import Data.Identity
 import Data.Int
 import Data.Maybe
 import Data.String
@@ -38,9 +38,11 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                 , nestedComments  = true
                 , identStart      = letter <|> oneOf ['_', '$']
                 , identLetter     = alphaNum <|> oneOf ['_', '$']
-                , reservedNames   = ["state", "true", "false", "event"
-                                    , "delay", "going"
-                                    , "title", "descr", "print" ,"order"]
+                , reservedNames   =
+                    ["state", "true", "false", "event"
+                    , "delay", "going"
+                    -- , "title", "descr" , "print" ,"order"
+                    ]
                 , reservedOpNames = [":", ","]
                 , caseSensitive   = false
                 }
@@ -62,11 +64,6 @@ parseBoolean = whiteSpace *>
 parseNumber = whiteSpace *>
     (try tokParser.float)
     <|> (toNumber <$> tokParser.integer)
-
-parseVar =
-  parseIdentifier >>= \name ->
-  many (brackets $ parseExpr) >>= \subs ->
-  pure $ Var name subs
 
 parseArray = fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
@@ -102,18 +99,25 @@ parseTerm p = choice
     , (Trm <<< toTerm "String" <$> parseStringLiteral)
     , (Trm <<< toTerm "Number" <$> parseNumber)
     , (Trm <<< toTerm "Boolean" <$> parseBoolean)
-    , (do
-        _ <- symbol "`"
-        name <- parseIdentifier `sepBy` (string ".")
-        args <- parseArgument
-        pure (Fun (fromFoldable name) args))
-    , (Ref <$> parseVar)
+    , (Var <$> parseIdentifier)
     ,  parens p
     ]
 
-bin'op'tab =
-    [ [Prefix (Una <$> symbol "-")]
-    , [Prefix (Una <$> symbol "!")]
+neg = (Una <$> symbol "-")
+not = (Una <$> symbol "!")
+dot = (symbol "." *>
+       parseIdentifier >>= \attr ->
+       pure $ \expr -> Dot expr attr)
+
+sub exprP = (brackets $ exprP >>= \sub ->
+       pure $ \expr -> Sub expr sub)
+
+call exprP = (parens $ exprP `sepBy` (string ",") >>=
+    \args -> pure $ \expr -> Fun expr (fromFoldable args))
+
+op'tab exprP =
+    [ [prefix $ choice [neg, not]]
+    , [postfix $ choice [call exprP, dot, sub exprP]]
     , [Infix (Bin <$> symbol "<") AssocLeft]
     , [Infix (Bin <$> symbol "<=") AssocLeft]
     , [Infix (Bin <$> symbol ">") AssocLeft]
@@ -133,19 +137,46 @@ bin'op'tab =
     , [Infix (Bin <$> symbol "||") AssocRight]
     ]
 
+prefix  p = Prefix  <<< chainl1 p $ pure       (<<<)
+postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
+
 -- try to prevent consume input
 parseExpr = fix $ \self ->
-    whiteSpace *> do
-    buildExprParser bin'op'tab (parseTerm self)
+    whiteSpace *>
+    buildExprParser (op'tab self) (parseTerm self) >>=
+    \expr -> (
+       (symbol "." *>
+           parseIdentifier >>= \attr ->
+           pure $ Dot expr attr)
+       <|> pure expr
+    )
+    -- <|> try (do
+    --     maybe <- try $ optionMaybe (do
+    --          expr <- self
+    --          _ <- symbol "."
+    --          pure expr)
+    --     fn <- parseIdentifier
+    --     args <- parseArgument
+    --     pure $ Fun Non fn args)
+    --     -- case maybe of
+    --     --     Just obj -> pure $ Fun obj fn args
+    --     --     Nothing -> pure $ Fun Non fn args)
     <|> fail "Expected Expression"
 
 expr'action = ["title", "descr", "print" ,"order"]
 
-testBind = try (do
-    var <- parseVar
+mustLval lval =
+    case lval of
+        Sub _ _ -> pure lval
+        Var _ -> pure lval
+        Dot _ _ -> pure lval
+        _ -> fail "Expected left value"
+
+testBind = (do
+    var <- try parseExpr
     whiteSpace
     reserved "="
-    pure var
+    mustLval var
 )
 
 parseBinding = do
@@ -156,20 +187,21 @@ parseBinding = do
 parseArgument = fix $ \self ->
   (parens $ fromFoldable <$>
       parseExpr `sepBy` (string ","))
-  <|> (flip (:) []) <$> parseExpr
+  -- <|> (flip (:) []) <$> parseExpr
 
 parseAction::ParserT String Identity Action
 parseAction = fix $ \self ->
-  ((choice $
-    map (\n ->
-        Invok [n] <$> (reserved n *> parseArgument))
-        expr'action)
+  (-- (choice $
+   --  map (\n ->
+   --      Value n [] <$> (reserved n *> parseExpr))
+   --      expr'action)
+   parseBinding
   <|> Delay <$> (reserved "delay" *> parseExpr)
-  <|> (do
-        _ <- symbol "`"
-        name <- parseIdentifier `sepBy` (string ".")
-        args <- parseArgument
-        pure (Invok (fromFoldable name) args))
+  -- <|> try (do
+  --       fn <- parseExpr
+  --       chain <- many (symbol "." *> parseIdentifier)
+  --       args <- parseArgument
+  --       pure (Value name chain args))
   <|> (do
       reserved "event"
       name <- parseEtype
@@ -178,7 +210,8 @@ parseAction = fix $ \self ->
       pure $ Event name rules action)
   <|> (braces $ Group <$> L.many self)
   <|> (reserved "going" *> (Going <$> parseIdentifier))
-  <|> parseBinding) -- may consume, need restore
+  <|> Value <$> parseExpr
+  ) -- may consume, need restore
   -- Timer
   -- while
   -- visit

@@ -8,6 +8,7 @@ You can edit this file as you like.
   , "assert"
   , "console"
   , "effect"
+  , "foreign-generic"
   , "foreign-object"
   , "generics-rep"
   , "lists"

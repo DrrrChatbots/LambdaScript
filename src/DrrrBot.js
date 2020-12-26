@@ -32,31 +32,42 @@ builtins_test = {
     console.log(`descr ${JSON.stringify(msg)}`);
   },
   'print': function(msg){
-  //builtins_test[sym].apply(null, args.map((x)=>x['value0']))
     console.log(`print ${JSON.stringify(msg)}`);
   },
   'order': function(keyword, p1, p2){
-    console.log(`order ${JSON.stringify(msg)}`);
+    console.log(`order ${JSON.stringify(keyword)}`);
   }
 }
 
 var functions = builtins_test
 
-exports.invok = syms => args => () => {
+for(key in functions){
+  globalThis[key] = functions[key];
+}
+
+exports.invok = fn => syms => args => () => {
   //builtins_test[sym].apply(null, args.map((x)=>x['value0']))
-  if(syms.length == 1 && functions[syms[0]])
-    functions[syms].apply(null, args)
-  else
-    invokExternal(globalThis)(syms).apply(
-      null, args)
-  console.log(`Invok ${syms} ${JSON.stringify(args)}`);
+  if(functions[fn])
+    functions[fn].apply(null, args)
+  else if(typeof(fn) == 'string'){
+    sel = invokExternal(globalThis[fn])(syms)
+    if(sel) sel.apply(null, args);
+  }
+  else{
+    sel = invokExternal(fn)(syms)
+    if(sel) sel.apply(fn, args)
+  }
+  console.log(`Value ${syms} ${JSON.stringify(args)}`);
 }
 
 invokExternal = namespace => syms => {
   var f = namespace;
+  console.log(f);
   for(var key of syms){
-    if(!f)
-    return () => console.log(`cannot find function ${syms}`)
+    if(!f){
+      console.log(`cannot find function ${syms}`)
+      return undefined;
+    }
     f = f[key];
   }
   return f;

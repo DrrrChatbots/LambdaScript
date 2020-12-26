@@ -13,8 +13,9 @@ import Foreign.Object as FO
 
 type Tab = FO.Object Term
 
-showTab tab = "{\n" <> FO.fold (\acc key val -> acc <> ", " <> key <> ": " <> val.toString undefined <> "\n") "" tab <> "}"
+foreign import global :: Tab
 
+showTab tab = "{\n" <> FO.fold (\acc key val -> acc <> ", " <> key <> ": " <> val.toString undefined <> "\n") "" tab <> "}"
 
 data Env = Env {lv:: Int, tab :: Tab, root :: Env} | Top
 
@@ -44,7 +45,11 @@ assocEnv key (Env e) =
       Just _ -> Just e.tab
       Nothing -> assocEnv key e.root
 
-assocVar name Top = Nothing
+assocVar name Top =
+    case FO.lookup name global of
+      Just val -> Just val
+      Nothing -> Nothing
+
 assocVar name (Env e) =
     case FO.lookup name e.tab of
       Just val -> Just val
