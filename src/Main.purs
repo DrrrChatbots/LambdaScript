@@ -12,7 +12,10 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
-going test
+for(i = 0; i < 10; i++){
+    print(i);
+}
+
 state test {
     Math = [1,2,3,4]
     Math.line = 4
@@ -52,6 +55,5 @@ compile ctx = case parse parseScript ctx of
     Left err -> log ("error: " <> show err)
 
 -- main = log "Welcome to use BotScript"
-main = execute ctx
--- main = execute ctx
--- main = execute "`console.log -1"
+m = 1
+main = (if m == 0 then compile else execute) ctx

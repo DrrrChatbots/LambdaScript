@@ -27,6 +27,7 @@ import Undefined (undefined)
 -- write state checker
 foreign import none :: forall a. a -> Term
 foreign import print :: forall a. a -> Effect Unit
+foreign import bool :: forall a. Term -> a -> a -> a
 
 runVM (BotScript actions states) =
     let env = Env.pushEnv Env.Top in
@@ -35,7 +36,13 @@ runVM (BotScript actions states) =
         tailRecM runActions { as: (actions : Nil)
                             , e: env
                             , sn: ""
-                            , s:states}
+                            , s: states}
+
+runAction act env sname states =
+        tailRecM runActions { as: ((act : Nil) : Nil)
+                            , e: env
+                            , sn: sname
+                            , s: states}
 
 runActions :: { as :: List (List Action)
                   , e :: Env.Env
@@ -54,14 +61,14 @@ runActions { as: Nil
            , e: env
            , sn: sname
            , s: states} = do
-   liftEffect $ log "wrong"
+   liftEffect $ log "Wrong Action."
    pure (Done unit)
 
 runActions { as: (Cons Nil Nil)
            , e: env
            , sn: sname
            , s: states} = do
-   liftEffect $ log "done"
+   liftEffect $ log "Action Done."
    pure (Done unit)
 
 runActions { as: (Cons Nil rst)
@@ -71,17 +78,24 @@ runActions { as: (Cons Nil rst)
     let pop'env = Env.popEnv env in
         pure (Loop { as: rst
                    , e: pop'env
-                   , sn: sname, s: states})
+                   , sn: sname
+                   , s: states})
 
 runActions { as: (Cons (Cons a as) ra)
            , e: env
            , sn: sname
            , s: states} =
+    let next'loop = Loop { as: (as : ra)
+                          , e: env
+                          , sn: sname
+                          , s: states} in
     case a of
         (Going dest) ->
-            case find (\(BotState name _) -> name == dest) states of
+            case find (\(BotState name _)
+                       -> name == dest) states of
               Just (BotState _ acts') ->
-                  let top'env = Env.topEnv env in
+                  let top'env = Env.topEnv env in do
+                      liftEffect $ unlisten sname
                       pure (Loop { as: ((acts' : Nil) : Nil)
                                  , e: top'env
                                  , sn: dest
@@ -102,18 +116,15 @@ runActions { as: (Cons (Cons a as) ra)
         (Value expr) ->
             let val = evalExpr env expr in do
                 liftEffect <<< print $ val
-                pure (Loop { as: (as : ra)
-                           , e: env
-                           , sn: sname
-                           , s: states})
+                pure next'loop
 
         (Event etype rules action) -> do
             liftEffect $ logShow a
-            liftEffect $ listen sname etype (map snd rules) (make'event'action rules action sname states env)
-            pure (Loop { as: (as : ra)
-                       , e: env
-                       , sn: sname
-                       , s: states})
+            liftEffect $ listen sname etype
+                            (map snd rules)
+                            (make'event'action rules action
+                                        sname states env)
+            pure next'loop
 
         (Renew lval val) ->
             let val' = evalExpr env val in do
@@ -129,15 +140,26 @@ runActions { as: (Cons (Cons a as) ra)
                            sub' = evalExpr env sub in
                            liftEffect $ updMem obj' sub val'
                    _ -> liftEffect $ logShow "invalid renew"
-              pure (Loop { as: (as : ra)
-                         , e: env
-                         , sn: sname
-                         , s: states})
+              pure next'loop
 
         (Value expr) ->
             let val = evalExpr env expr in do
                 liftEffect $ log (val.toString undefined)
-                pure (Loop { as: (as : ra)
+                pure next'loop
+
+        (Ifels prd thn els) ->
+            let prd' = evalExpr env prd
+                act' = bool prd' thn els in do
+                pure (Loop { as: ((act' : as) : ra)
+                           , e: env
+                           , sn: sname
+                           , s: states})
+
+
+        while@(While prd act) ->
+           let prd' = evalExpr env prd
+               nxt' = bool prd' (act : while : as) as in do
+                pure (Loop { as: (nxt' : ra)
                            , e: env
                            , sn: sname
                            , s: states})
@@ -148,19 +170,12 @@ runActions { as: (Cons (Cons a as) ra)
                (Delay expr) -> do
                   liftEffect $ logShow a
                   Aff.delay (Milliseconds 1000.0)
-               (While expr action) ->
-                   liftEffect $ logShow a
                (Visit var expr action) ->
-                   liftEffect $ logShow a
-               (Match expr thn els) ->
                    liftEffect $ logShow a
                _ -> liftEffect $
                    log $ "unhandled action: " <> show a
 
-            pure (Loop { as: (as : ra)
-                       , e: env
-                       , sn: sname
-                       , s: states})
+            pure next'loop
 
 foreign import evalBin :: String -> Term -> Term -> Term
 foreign import evalUna :: String -> Term -> Term
@@ -168,19 +183,43 @@ foreign import evalFun :: forall a. Term -> a -> (Array Term) -> Term
 foreign import memberOf :: Term -> Term -> Term
 foreign import updMem :: forall a. Term -> a -> Term -> Effect Unit
 
+lvalUpdate env lval val =
+    case lval of
+        (Var name) ->
+            Env.insert env name val
+        (Dot obj mem) ->
+            let obj' = evalExpr env obj
+                _ = updMem obj' mem val in env
+        (Sub obj sub) ->
+            let obj' = evalExpr env obj
+                sub' = evalExpr env sub
+                _ = updMem obj' sub val in env
+        _ -> env
+
+
 
 evalExpr :: Env.Env -> Expr -> Term
 evalExpr env (Arr array) =
     toTerm "Array" $ map (evalExpr env) array
 
 evalExpr env (Bin op lv rv) =
-    evalBin op elv erv where
-          elv = evalExpr env lv
-          erv = evalExpr env rv
+    evalBin op lv' rv' where
+          lv' = evalExpr env lv
+          rv' = evalExpr env rv
 
 evalExpr env (Una op val) =
-    evalUna op ev where
-          ev = evalExpr env val
+    case op of
+         "_++" ->
+             let _ = lvalUpdate env val val'' in val'
+         "_--" ->
+             let _ = lvalUpdate env val val'' in val'
+         "++_" ->
+             let _ = lvalUpdate env val val'' in val''
+         "--_" ->
+             let _ = lvalUpdate env val val'' in val''
+         _ -> val''
+    where val' = evalExpr env val
+          val'' = evalUna op val'
 
 evalExpr env (Fun expr args) =
     -- TODO: split case

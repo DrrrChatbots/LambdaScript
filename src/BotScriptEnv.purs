@@ -69,4 +69,8 @@ update env key val =
 insert :: Env -> String -> Term -> Env
 insert Top key val = Top
 insert env@(Env e) key val = let
-    a = updateTab e.tab key val in env
+    exist = update env key val
+    _ = if exist
+        then true
+        else updateTab e.tab key val in
+    env

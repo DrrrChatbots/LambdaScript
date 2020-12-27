@@ -17,13 +17,18 @@ import Text.Parsing.Parser.Combinators
 import Text.Parsing.Parser.Expr
 
 import Control.Alt ((<|>))
+import Data.Array as A
 import Data.Either (Either(..))
 import Data.List (List)
 import Data.List as L
 import Data.String.CodeUnits (fromCharArray, singleton)
 import Effect (Effect)
 import Effect.Console (log)
+import Effect.Exception (name)
 import Text.Parsing.Parser (runParser)
+import Text.Parsing.Parser as P
+import Text.Parsing.Parser.Combinators as P
+import Text.Parsing.Parser.Expr as P
 import Text.Parsing.Parser.Language (emptyDef)
 import Text.Parsing.Parser.String (anyChar, char, eof, satisfy, string)
 import Text.Parsing.Parser.String (char, oneOf)
@@ -40,7 +45,7 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                 , identLetter     = alphaNum <|> oneOf ['_', '$']
                 , reservedNames   =
                     ["state", "true", "false", "event"
-                    , "delay", "going"
+                    , "delay", "going", "if", "else"
                     -- , "title", "descr" , "print" ,"order"
                     ]
                 , reservedOpNames = [":", ","]
@@ -56,6 +61,7 @@ parseIdentifier = whiteSpace *> tokParser.identifier
 parseStringLiteral = whiteSpace *> tokParser.stringLiteral
 symbol xs = whiteSpace *> tokParser.symbol xs
 reserved xs = whiteSpace *> tokParser.reserved xs
+reservedOp xs = whiteSpace *> tokParser.reservedOp xs
 
 parseBoolean = whiteSpace *>
     (reserved "true" *> pure true)
@@ -103,9 +109,15 @@ parseTerm p = choice
     ,  parens p
     ]
 
-neg = (Una <$> symbol "-")
-not = (Una <$> symbol "!")
-dot = (symbol "." *>
+neg = (Una "-" <$ reservedOp "-")
+not = (Una "!" <$ reservedOp "!")
+
+inc's = (Una "_++" <$ reservedOp "++")
+dec's = (Una "_--" <$ reservedOp "--")
+inc'p = (Una "++_" <$ reservedOp "++")
+dec'p = (Una "--_" <$ reservedOp "--")
+
+dot = (reservedOp "." *>
        parseIdentifier >>= \attr ->
        pure $ \expr -> Dot expr attr)
 
@@ -115,53 +127,43 @@ sub exprP = (brackets $ exprP >>= \sub ->
 call exprP = (parens $ exprP `sepBy` (string ",") >>=
     \args -> pure $ \expr -> Fun expr (fromFoldable args))
 
+binary name assoc =
+    Infix ((Bin name) <$ reservedOp name) assoc
+
 op'tab exprP =
-    [ [prefix $ choice [neg, not]]
-    , [postfix $ choice [call exprP, dot, sub exprP]]
-    , [Infix (Bin <$> symbol "<") AssocLeft]
-    , [Infix (Bin <$> symbol "<=") AssocLeft]
-    , [Infix (Bin <$> symbol ">") AssocLeft]
-    , [Infix (Bin <$> symbol ">=") AssocLeft]
-    -- consider support in operator
-    , [Infix (Bin <$> symbol "in") AssocLeft]
-    , [Infix (Bin <$> symbol "==") AssocLeft]
-    , [Infix (Bin <$> symbol "!=") AssocLeft]
-    , [Infix (Bin <$> symbol "===") AssocLeft]
-    , [Infix (Bin <$> symbol "!==") AssocLeft]
-    , [Infix (Bin <$> symbol "/") AssocLeft]
-    , [Infix (Bin <$> symbol "%") AssocLeft]
-    , [Infix (Bin <$> symbol "*") AssocLeft]
-    , [Infix (Bin <$> symbol "-") AssocLeft]
-    , [Infix (Bin <$> symbol "+") AssocLeft]
-    , [Infix (Bin <$> symbol "&&") AssocRight]
-    , [Infix (Bin <$> symbol "||") AssocRight]
+    [ [prefix $ choice [neg, not, inc'p, dec'p]]
+    , [postfix $ choice
+      [call exprP, dot, sub exprP, inc's, dec's]]
+    , [binary "<" AssocLeft]
+    , [binary "<=" AssocLeft]
+    , [binary ">" AssocLeft]
+    , [binary ">=" AssocLeft]
+    , [binary "in" AssocLeft]
+    , [binary "===" AssocLeft]
+    , [binary "==" AssocLeft]
+    , [binary "!==" AssocLeft]
+    , [binary "!=" AssocLeft]
+    , [binary "/" AssocLeft]
+    , [binary "%" AssocLeft]
+    , [binary "*" AssocLeft]
+    , [binary "-" AssocLeft]
+    , [binary "+" AssocLeft]
+    , [binary "&&" AssocRight]
+    , [binary "||" AssocRight]
     ]
 
 prefix  p = Prefix  <<< chainl1 p $ pure       (<<<)
 postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
 
 -- try to prevent consume input
+parseExpr :: ParserT String Identity Expr
 parseExpr = fix $ \self ->
-    whiteSpace *>
-    buildExprParser (op'tab self) (parseTerm self) >>=
-    \expr -> (
-       (symbol "." *>
-           parseIdentifier >>= \attr ->
-           pure $ Dot expr attr)
-       <|> pure expr
-    )
-    -- <|> try (do
-    --     maybe <- try $ optionMaybe (do
-    --          expr <- self
-    --          _ <- symbol "."
-    --          pure expr)
-    --     fn <- parseIdentifier
-    --     args <- parseArgument
-    --     pure $ Fun Non fn args)
-    --     -- case maybe of
-    --     --     Just obj -> pure $ Fun obj fn args
-    --     --     Nothing -> pure $ Fun Non fn args)
-    <|> fail "Expected Expression"
+    let exprP = buildExprParser
+                    (op'tab self)
+                    (parseTerm self) in
+        whiteSpace *> (
+        exprP
+    ) <?> "Expression"
 
 expr'action = ["title", "descr", "print" ,"order"]
 
@@ -172,58 +174,87 @@ mustLval lval =
         Dot _ _ -> pure lval
         _ -> fail "Expected left value"
 
-testBind = (do
+parseBinding = do
     var <- try parseExpr
     whiteSpace
-    reserved "="
-    mustLval var
-)
-
-parseBinding = do
-    var <- testBind
-    expr <- parseExpr <|> fail "Expected Binding Expression"
-    pure $ Renew var expr
+    op <- symbol "="
+        <|> symbol "+="
+        <|> symbol "-="
+        <|> symbol "*="
+        <|> symbol "/="
+        <|> symbol "%="
+    lval <- mustLval var
+    expr <- parseExpr <?> "Binding Expression"
+    case op of
+         "+=" -> pure $ Renew lval (Bin "+" lval expr)
+         "-=" -> pure $ Renew lval (Bin "-" lval expr)
+         "*=" -> pure $ Renew lval (Bin "*" lval expr)
+         "/=" -> pure $ Renew lval (Bin "/" lval expr)
+         "%=" -> pure $ Renew lval (Bin "%" lval expr)
+         _ -> pure $ Renew lval expr
 
 parseArgument = fix $ \self ->
   (parens $ fromFoldable <$>
       parseExpr `sepBy` (string ","))
   -- <|> (flip (:) []) <$> parseExpr
 
-parseAction::ParserT String Identity Action
-parseAction = fix $ \self ->
-  (-- (choice $
-   --  map (\n ->
-   --      Value n [] <$> (reserved n *> parseExpr))
-   --      expr'action)
-   parseBinding
-  <|> Delay <$> (reserved "delay" *> parseExpr)
-  -- <|> try (do
-  --       fn <- parseExpr
-  --       chain <- many (symbol "." *> parseIdentifier)
-  --       args <- parseArgument
-  --       pure (Value name chain args))
-  <|> (do
-      reserved "event"
-      name <- parseEtype
-      rules <- parseRules
-      action <- parseAction
-      pure $ Event name rules action)
-  <|> (braces $ Group <$> L.many self)
-  <|> (reserved "going" *> (Going <$> parseIdentifier))
-  <|> Value <$> parseExpr
+parseAction :: ParserT String Identity Action
+parseAction = fix $ \self -> (do
+  action <- (parseBinding
+      <|> Delay <$> (reserved "delay" *> parseExpr)
+      <|> (do
+          reserved "event"
+          name <- parseEtype
+          rules <- parseRules
+          action <- parseAction
+          pure $ Event name rules action)
+      <|> (do
+          reserved "if"
+          prd <- parseExpr <?> "If Pred"
+          thn <- parseAction <?> "Then Action"
+          maybe <- optionMaybe (reserved "else")
+          case maybe of
+             Just _ -> (do
+               els <- parseAction <?> "Else Action"
+               pure $ Ifels prd thn els)
+             Nothing -> pure $ Ifels prd thn (Group L.Nil))
+      <|> (let
+          desc = do
+             init <- self <?> "For Init Action"
+             cond <- parseExpr <?> "For Cond Expr"
+             P.optional (reserved ";")
+             step <- self <?> "For Step Action"
+             pure $ init /\ cond /\ step in do
+                reserved "for"
+                init /\ cond /\ step <- (parens desc <|> desc)
+                body <- self <?> "For Body Action"
+                pure $ Group (L.fromFoldable
+                 [init, While cond
+                 (Group (L.fromFoldable [body, step]))])
+            )
+      <|> (do
+          reserved "while"
+          prd <- parseExpr <?> "Pred"
+          act <- parseAction <?> "While Action"
+          pure $ While prd act)
+      <|> (braces $ Group <$> L.many self)
+      <|> (reserved "going" *> (Going <$> parseIdentifier))
+      <|> Value <$> parseExpr
+      -- Timer
+      -- visit
   ) -- may consume, need restore
-  -- Timer
-  -- while
-  -- visit
-  -- match
+  P.optional (reserved ";")
+  pure action)
+  <|> ((Group L.Nil) <$ reserved ";")
 
 parseState = do
   reserved "state"
-  name <- (parseIdentifier <|> fail "Expected State Name")
+  name <- (parseIdentifier <?> "State Name")
   action <- parseAction
   pure $ BotState name action
 
-testParseStates =
+testParseStates = do
+    lookAhead (reserved "state")
     (some parseState >>= \states -> pure (true /\ states))
     <|> pure (false /\ [])
 
@@ -242,7 +273,7 @@ parseScript' = do
         else fail "Expected State or Action"
 
 parseScript = do
-    xs <- some parseScript'
+    xs <- some parseScript' <?> "check"
     eof
     pure let s /\ a = unzip xs in
         BotScript (L.fromFoldable $ concat a) (concat s)

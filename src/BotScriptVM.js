@@ -1,4 +1,6 @@
 exports.evalBin = op => lval => rval => {
+  lval = lval.valueOf();
+  rval = rval.valueOf();
   if(op == "%")
     return Object(lval % rval);
   else if(op == "/")
@@ -32,10 +34,15 @@ exports.evalBin = op => lval => rval => {
 }
 
 exports.evalUna = op => val => {
+  val = val.valueOf();
   if(op == "!")
     return Object(!val);
   else if(op == '-')
     return Object(-val);
+  else if(op == '_++' || op == '++_')
+    return Object(val + 1);
+  else if(op == '_--' || op == '--_')
+    return Object(val - 1);
 }
 
 exports.evalFun = obj => name => args => {
@@ -80,4 +87,8 @@ exports.none = () => Object()
 
 exports.print = obj => () => {
   console.log("this", obj, typeof(obj));
+}
+
+exports.bool = pred => thn => els => {
+  return pred.valueOf() ? thn : els;
 }

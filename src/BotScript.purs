@@ -1,6 +1,5 @@
 module BotScript where
 
-import Undefined (undefined)
 import Data.Array
 import Data.Tuple.Nested
 import Prelude
@@ -11,6 +10,7 @@ import Data.List (List)
 import Data.List as L
 import Effect (Effect)
 import Effect.Exception (name)
+import Undefined (undefined)
 
 -- data Var = Var String (Array Expr)
 -- instance showVar :: Show Var where
@@ -68,7 +68,7 @@ data Action
   | Group (List Action)
   | While Expr Action
   | Visit Expr Expr Action -- note var
-  | Match Expr Action Action
+  | Ifels Expr Action Action
   | Event String (Array Rule) Action
 
 instance showAction :: Show Action where
@@ -91,8 +91,8 @@ instance showAction :: Show Action where
     <> show var <> " "
     <> show expr <> " "
     <> show action <> ")"
-  show (Match prd thn els)
-    = "(Match "
+  show (Ifels prd thn els)
+    = "(Ifels "
        <> show prd <> " "
        <> show thn <> " "
        <> show els <> ")"

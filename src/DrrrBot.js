@@ -1,5 +1,5 @@
 
-builtins = {
+drrr_builtins = {
   'title': function(msg){
     sendTab({ fn: publish_message, args: { msg: msg} });
   },
@@ -24,25 +24,30 @@ builtins = {
   }
 }
 
-builtins_test = {
+botlang_builtins = {
   'title': function(msg){
     console.log(`title ${JSON.stringify(msg)}`);
   },
   'descr': function(msg){
     console.log(`descr ${JSON.stringify(msg)}`);
   },
-  'print': function(msg){
-    console.log(`print ${JSON.stringify(msg)}`);
+  'print': function(...args){
+    console.log.apply(null,
+      args.map((e)=>e.valueOf ? e.valueOf() : e));
+    //console.log(`print ${JSON.stringify(msg)}`);
   },
   'order': function(keyword, p1, p2){
     console.log(`order ${JSON.stringify(keyword)}`);
   }
 }
 
-var functions = builtins_test
+globalThis.drrr = {}
+for(key in drrr_builtins){
+  globalThis.drrr[key] = drrr_builtins[key];
+}
 
-for(key in functions){
-  globalThis[key] = functions[key];
+for(key in botlang_builtins){
+  globalThis[key] = botlang_builtins[key];
 }
 
 exports.invok = fn => syms => args => () => {
@@ -80,6 +85,10 @@ function padArray(array, length, fill){
   return length > array.length ?
     array.concat(Array(length - array.length).fill(fill)):
     array;
+}
+
+exports.unlisten = state => () => {
+  exports.events[state] = [];
 }
 
 exports.listen = state => type => args => next => () => {
