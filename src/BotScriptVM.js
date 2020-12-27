@@ -49,14 +49,19 @@ exports.evalFun = obj => name => args => {
 
   //console.log("call => ", obj, name, args);
 
-  if(!name && typeof(obj) == 'function'){
-    val = obj.apply(null, args);
+  try{
+    if(!name && typeof(obj) == 'function'){
+      val = obj.apply(null, args);
+    }
+    else if(obj && obj[name]){
+      val = obj[name].apply(obj, args);
+    }
+    else val = undefined;
   }
-  else if(obj && obj[name]){
-    val = obj[name].apply(obj, args);
+  catch(err){
+    console.log(err.code);
+    return {};
   }
-  else val = undefined;
-
   //console.log("val = ", val);
 
   return val === undefined || val == null ? {} : val;
@@ -92,3 +97,18 @@ exports.print = obj => () => {
 exports.bool = pred => thn => els => {
   return pred.valueOf() ? thn : els;
 }
+
+exports.timers = {}
+exports.setTimer = state => prd => act => () => {
+  exports.timers[state] = exports.timers[state] || [];
+  exports.timers[state].push(setInterval(act, prd));
+}
+
+exports.clearTimer = state => () => {
+  if(exports.timers[state])
+    for(id of exports.timers[state])
+      clearInterval(id);
+  exports.timers[state] = [];
+}
+
+exports.toNumber = Number

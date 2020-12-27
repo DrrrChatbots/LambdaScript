@@ -54,6 +54,7 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
 
 tokParser = makeTokenParser customStyle
 whiteSpace = tokParser.whiteSpace
+angles p = whiteSpace *> tokParser.angles p
 parens p = whiteSpace *> tokParser.parens p
 braces p = whiteSpace *> tokParser.braces p
 brackets p = whiteSpace *> tokParser.brackets p
@@ -71,9 +72,9 @@ parseNumber = whiteSpace *>
     (try tokParser.float)
     <|> (toNumber <$> tokParser.integer)
 
-parseArray = fix $ \self ->
+parseArray exprP = fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
-      parseExpr `sepBy` (string ","))
+      exprP `sepBy` (string ","))
 
 event'types =
     [ "join"
@@ -100,14 +101,17 @@ parseRules = fix $ \self ->
   (parens $ fromFoldable <$>
       parsePattern `sepBy` (reserved ","))
 
-parseTerm p = choice
-    [ parseArray
+parseTerm exprP = choice
+    [ parseArray exprP
     , (Trm <<< toTerm "String" <$> parseStringLiteral)
     , (Trm <<< toTerm "Number" <$> parseNumber)
     , (Trm <<< toTerm "Boolean" <$> parseBoolean)
     , (Var <$> parseIdentifier)
-    ,  parens p
+    ,  parens exprP
     ]
+
+parseSeq actionP = (braces $ Seq <$> L.many actionP)
+
 
 neg = (Una "-" <$ reservedOp "-")
 not = (Una "!" <$ reservedOp "!")
@@ -156,14 +160,14 @@ prefix  p = Prefix  <<< chainl1 p $ pure       (<<<)
 postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
 
 -- try to prevent consume input
-parseExpr :: ParserT String Identity Expr
-parseExpr = fix $ \self ->
+parseExpr :: ParserT String Identity Action ->
+                ParserT String Identity Expr
+parseExpr actionP = fix $ \self ->
     let exprP = buildExprParser
                     (op'tab self)
-                    (parseTerm self) in
-        whiteSpace *> (
-        exprP
-    ) <?> "Expression"
+                    (parseTerm self) in do
+    whiteSpace
+    exprP <|> parseSeq actionP <?> "Expression"
 
 expr'action = ["title", "descr", "print" ,"order"]
 
@@ -174,8 +178,8 @@ mustLval lval =
         Dot _ _ -> pure lval
         _ -> fail "Expected left value"
 
-parseBinding = do
-    var <- try parseExpr
+parseBinding exprP = do
+    var <- try exprP
     whiteSpace
     op <- symbol "="
         <|> symbol "+="
@@ -184,7 +188,7 @@ parseBinding = do
         <|> symbol "/="
         <|> symbol "%="
     lval <- mustLval var
-    expr <- parseExpr <?> "Binding Expression"
+    expr <- exprP <?> "Binding Expression"
     case op of
          "+=" -> pure $ Renew lval (Bin "+" lval expr)
          "-=" -> pure $ Renew lval (Bin "-" lval expr)
@@ -193,35 +197,36 @@ parseBinding = do
          "%=" -> pure $ Renew lval (Bin "%" lval expr)
          _ -> pure $ Renew lval expr
 
-parseArgument = fix $ \self ->
-  (parens $ fromFoldable <$>
-      parseExpr `sepBy` (string ","))
-  -- <|> (flip (:) []) <$> parseExpr
+-- parseArgument = fix $ \self ->
+--   (parens $ fromFoldable <$>
+--       parseExpr `sepBy` (string ","))
+--   -- <|> (flip (:) []) <$> parseExpr
 
 parseAction :: ParserT String Identity Action
-parseAction = fix $ \self -> (do
-  action <- (parseBinding
-      <|> Delay <$> (reserved "delay" *> parseExpr)
+parseAction = fix $ \self ->
+    let exprP = parseExpr self in (do
+  action <- (parseBinding exprP
+      <|> Delay <$> (reserved "delay" *> exprP)
       <|> (do
           reserved "event"
           name <- parseEtype
           rules <- parseRules
-          action <- parseAction
+          action <- self
           pure $ Event name rules action)
       <|> (do
           reserved "if"
-          prd <- parseExpr <?> "If Pred"
-          thn <- parseAction <?> "Then Action"
+          prd <- exprP <?> "If Pred"
+          thn <- self <?> "Then Action"
           maybe <- optionMaybe (reserved "else")
           case maybe of
              Just _ -> (do
-               els <- parseAction <?> "Else Action"
+               els <- self <?> "Else Action"
                pure $ Ifels prd thn els)
              Nothing -> pure $ Ifels prd thn (Group L.Nil))
       <|> (let
           desc = do
              init <- self <?> "For Init Action"
-             cond <- parseExpr <?> "For Cond Expr"
+             cond <- exprP <?> "For Cond Expr"
              P.optional (reserved ";")
              step <- self <?> "For Step Action"
              pure $ init /\ cond /\ step in do
@@ -234,14 +239,19 @@ parseAction = fix $ \self -> (do
             )
       <|> (do
           reserved "while"
-          prd <- parseExpr <?> "Pred"
-          act <- parseAction <?> "While Action"
+          prd <- exprP <?> "Pred"
+          act <- self <?> "While Action"
           pure $ While prd act)
       <|> (braces $ Group <$> L.many self)
       <|> (reserved "going" *> (Going <$> parseIdentifier))
-      <|> Value <$> parseExpr
+      <|> (do
+          reserved "timer"
+          prd <- exprP <?> "Timer Period"
+          act <- self <?> "Timer Action"
+          pure $ Timer prd act)
       -- Timer
       -- visit
+      <|> Value <$> exprP
   ) -- may consume, need restore
   P.optional (reserved ";")
   pure action)

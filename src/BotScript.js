@@ -1,7 +1,9 @@
 exports.toTerm =
   constructorName =>
   literal => {
-    if(constructorName == "Array"){
+    if(constructorName == "")
+      return literal;
+    else if(constructorName == "Array"){
       return Object(literal);
     }
     return Object(globalThis[constructorName](literal));

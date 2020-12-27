@@ -24,6 +24,7 @@ data Expr
   | Sub Expr Expr
   | Dot Expr String
   | Fun Expr (Array Expr)
+  | Seq (List Action)
   | Trm Term
 
 type Term = (Record (toString :: (forall a. a) -> String))
@@ -46,6 +47,9 @@ instance showExpr :: Show Expr where
     = "(Fun "
     <> show expr <> " "
     <> show args <> ")"
+  show (Seq acts)
+    = "(Seq "
+    <> show acts <> ")"
   show (Dot expr attr)
     = show expr <> "." <> show attr
   show (Sub expr sub)
@@ -53,7 +57,6 @@ instance showExpr :: Show Expr where
   show (Var   s) = "(Var " <> show s <> ")"
   show (Trm   term) = term.toString undefined
 
-type Period = String
 type Rule = String /\ String
 
 -- Value : Title Descr Delay Print Order Going
@@ -64,7 +67,7 @@ data Action
   | Delay Expr
   | Going String
   | Renew Expr Expr -- note lval
-  | Timer Period Action
+  | Timer Expr Action
   | Group (List Action)
   | While Expr Action
   | Visit Expr Expr Action -- note var

@@ -38,6 +38,20 @@ botlang_builtins = {
   },
   'order': function(keyword, p1, p2){
     console.log(`order ${JSON.stringify(keyword)}`);
+  },
+  'new': function (func) {
+    var res = {};
+    if (func.prototype !== null) {
+      res.__proto__ = func.prototype;
+    }
+    var ret = func.apply(res,
+      Array.prototype.slice.call(arguments, 1));
+    if ((typeof ret === "object"
+      || typeof ret === "function")
+      && ret !== null) {
+      return ret;
+    }
+    return res;
   }
 }
 
@@ -118,12 +132,11 @@ function event_action(event, config, req){
     if(((Array.isArray(type) && type.includes(event)) || type == event)
       && match_user(req.user, req.trip, user_trip_regex)
       && ((req.text === 'unknown' || req.text === undefined)
-          || req.text.match(new RegExp(cont_regex)))){
-        action([req.user, req.text]);
-        //argfmt(arglist, req.user, req.text, req.url, (args)=>{
-        //  return actions[action].apply(config, args);
-        //});
+        || req.text.match(new RegExp(cont_regex)))){
+      action([req.user, req.text]);
+      //argfmt(arglist, req.user, req.text, req.url, (args)=>{
+      //  return actions[action].apply(config, args);
+      //});
     }
   });
 }
-
