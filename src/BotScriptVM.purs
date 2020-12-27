@@ -30,11 +30,14 @@ foreign import print :: forall a. a -> Effect Unit
 foreign import bool :: forall a. Term -> a -> a -> a
 foreign import setTimer :: forall a. String -> Term -> (a -> Effect Unit) -> Effect Unit
 foreign import clearTimer :: String -> Effect Unit
+foreign import clearAllTimer :: Effect Unit
 foreign import toNumber :: Term -> Number
 
 runVM (BotScript actions states) =
-    let env = Env.pushEnv Env.Top in
+    let env = Env.pushEnv Env.Top in do
     -- for_ actions (\a -> runAction a states env)
+    clearAllTimer
+    clearAllEvent
     void <<< Aff.launchAff $
         tailRecM runActions { as: (actions : Nil)
                             , e: env
@@ -128,9 +131,9 @@ runActions ms@{ as: (Cons (Cons a as) ra)
                 liftEffect <<< print $ val
                 pure next'loop
 
-        (Event etype rules action) -> do
+        (Event etypes rules action) -> do
             liftEffect $ logShow a
-            liftEffect $ listen sname etype
+            liftEffect $ listen sname etypes
                             (map snd rules)
                             (make'event'action rules action
                                         sname states env)

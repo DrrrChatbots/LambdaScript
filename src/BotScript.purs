@@ -72,7 +72,7 @@ data Action
   | While Expr Action
   | Visit Expr Expr Action -- note var
   | Ifels Expr Action Action
-  | Event String (Array Rule) Action
+  | Event (Array String) (Array Rule) Action
 
 instance showAction :: Show Action where
   show (Value expr)

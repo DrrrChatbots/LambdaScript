@@ -76,19 +76,54 @@ parseArray exprP = fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
       exprP `sepBy` (string ","))
 
+-- event'types =
+--     [ "join"
+--     , "left"
+--     , "play"
+--     , "over"
+--     , "milk"
+--     , "talk"
+--     , "priv"
+--     ]
+
 event'types =
-    [ "join"
-    , "left"
-    , "play"
-    , "over"
-    , "milk"
-    , "talk"
-    , "priv"
+    [ "me"
+    , "music"
+    , "leave"
+    , "join"
+    , "new-host"
+    , "msg"
+    , "dm"
+    , "dmto"
+    , "submit"
+    , "newtab"
+    , "exittab"
+    , "exitalarm"
+    , "logout"
+    , "musicbeg"
+    , "musicend"
+    , "timer"
+    , "clock"
+    , "kick"
+    , "ban"
+    , "report_and_ban_user"
+    , "unban"
+    , "roll"
+    , "room-profile"
+    , "new-description"
+    , "timeout"
     ]
 
-parseEtype = choice $ map (\n ->
+parseEtype = (choice $ map (\n ->
     symbol n)
-    event'types
+    event'types) <?> show event'types
+
+parseEtypes = (do
+  (brackets $ fromFoldable <$>
+      parseEtype `sepBy` (string ",")))
+  <|> (do
+      et <- parseEtype
+      pure $ [et])
 
 parsePattern = do
     var <- parseIdentifier
@@ -99,7 +134,7 @@ parsePattern = do
 
 parseRules = fix $ \self ->
   (parens $ fromFoldable <$>
-      parsePattern `sepBy` (reserved ","))
+      parsePattern `sepBy` (reserved ",")) <|> pure []
 
 parseTerm exprP = choice
     [ parseArray exprP
@@ -179,7 +214,7 @@ mustLval lval =
         _ -> fail "Expected left value"
 
 parseBinding exprP = do
-    var <- try exprP
+    lval <- try (exprP >>= mustLval)
     whiteSpace
     op <- symbol "="
         <|> symbol "+="
@@ -187,7 +222,6 @@ parseBinding exprP = do
         <|> symbol "*="
         <|> symbol "/="
         <|> symbol "%="
-    lval <- mustLval var
     expr <- exprP <?> "Binding Expression"
     case op of
          "+=" -> pure $ Renew lval (Bin "+" lval expr)
@@ -205,11 +239,12 @@ parseBinding exprP = do
 parseAction :: ParserT String Identity Action
 parseAction = fix $ \self ->
     let exprP = parseExpr self in (do
-  action <- (parseBinding exprP
+  action <- (try $ parseBinding exprP
+      <|> (braces $ Group <$> L.many self)
       <|> Delay <$> (reserved "delay" *> exprP)
       <|> (do
           reserved "event"
-          name <- parseEtype
+          name <- parseEtypes
           rules <- parseRules
           action <- self
           pure $ Event name rules action)
@@ -242,7 +277,6 @@ parseAction = fix $ \self ->
           prd <- exprP <?> "Pred"
           act <- self <?> "While Action"
           pure $ While prd act)
-      <|> (braces $ Group <$> L.many self)
       <|> (reserved "going" *> (Going <$> parseIdentifier))
       <|> (do
           reserved "timer"

@@ -101,42 +101,25 @@ function padArray(array, length, fill){
     array;
 }
 
+exports.clearAllEvent = () => {
+  exports.cur = "";
+  exports.events = {};
+}
+
 exports.unlisten = state => () => {
+  exports.cur = state;
   exports.events[state] = [];
 }
 
-exports.listen = state => type => args => next => () => {
+exports.listen = state => types => args => next => () => {
   //builtins[sym].apply(null, args.map((x)=>x['value0']))
   exports.events[state] = exports.events[state] || [];
 
   [user_regex, cont_regex] = padArray(args);
 
   exports.events[state].push([
-    type, user_regex, cont_regex, next
+    types, user_regex, cont_regex, next
   ])
 
-  console.log(`Event ${type} ${JSON.stringify(args)}`);
-}
-
-exports.handle = function(){
-
-}
-
-function event_action(event, config, req){
-  var rule = exports.events[""] || []
-
-  if(exports.cur.length)
-    rule = rule.concat(exports.events[exports.cur] || [])
-
-  rules.map(([type, user_trip_regex, cont_regex, action])=> {
-    if(((Array.isArray(type) && type.includes(event)) || type == event)
-      && match_user(req.user, req.trip, user_trip_regex)
-      && ((req.text === 'unknown' || req.text === undefined)
-        || req.text.match(new RegExp(cont_regex)))){
-      action([req.user, req.text]);
-      //argfmt(arglist, req.user, req.text, req.url, (args)=>{
-      //  return actions[action].apply(config, args);
-      //});
-    }
-  });
+  console.log(`Event ${types} ${JSON.stringify(args)}`);
 }
