@@ -26,7 +26,6 @@ import Undefined (undefined)
 
 -- write state checker
 foreign import none :: forall a. a -> Term
-foreign import print :: forall a. a -> Effect Unit
 foreign import bool :: forall a. Term -> a -> a -> a
 foreign import setTimer :: forall a. String -> Term -> (a -> Effect Unit) -> Effect Unit
 foreign import clearTimer :: String -> Effect Unit
@@ -128,7 +127,6 @@ runActions ms@{ as: (Cons (Cons a as) ra)
 
         (Value expr) ->
             let val = evalExpr ms env expr in do
-                liftEffect <<< print $ val
                 pure next'loop
 
         (Event etypes rules action) -> do

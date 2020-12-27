@@ -1,13 +1,13 @@
 
 drrr_builtins = {
   'title': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
+    sendTab({ fn: publish_message, args: { msg: String(msg)} });
   },
   'descr': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
+    sendTab({ fn: publish_message, args: { msg: String(msg)} });
   },
   'print': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
+    sendTab({ fn: publish_message, args: { msg: String(msg)} });
   },
   'order': function(keyword, p1, p2){
     var idx = undefined, source = undefined;

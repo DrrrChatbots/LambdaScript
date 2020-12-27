@@ -90,10 +90,6 @@ exports.updMem = obj => name => val => () => {
 
 exports.none = () => Object()
 
-exports.print = obj => () => {
-  console.log("this", obj, typeof(obj));
-}
-
 exports.bool = pred => thn => els => {
   return pred.valueOf() ? thn : els;
 }
