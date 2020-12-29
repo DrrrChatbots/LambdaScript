@@ -278,6 +278,7 @@ parseAction = fix $ \self ->
           act <- self <?> "While Action"
           pure $ While prd act)
       <|> (reserved "going" *> (Going <$> parseIdentifier))
+      <|> (reserved "visit" *> (Visit <$> parseIdentifier))
       <|> (do
           reserved "timer"
           prd <- exprP <?> "Timer Period"

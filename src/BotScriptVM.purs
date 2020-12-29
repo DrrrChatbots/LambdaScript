@@ -117,6 +117,22 @@ runActions ms@{ as: (Cons (Cons a as) ra)
                       "state <" <> dest <> "> not found"
                   pure (Done unit)
 
+        (Visit stat) ->
+            case find (\(BotState name _)
+                       -> name == stat) states of
+              Just (BotState _ acts') ->
+                  let top'env = Env.topEnv env in do
+                      liftEffect $ unlisten sname
+                      liftEffect $ clearTimer sname
+                      pure (Loop { as: ((acts' : as) : ra)
+                                 , e: top'env
+                                 , sn: stat
+                                 , s: states})
+              Nothing -> do
+                  liftEffect <<< log $
+                      "state <" <> stat <> "> not found"
+                  pure (Done unit)
+
         (Group actions) ->
             let _ = logShow a
                 new'env = (Env.pushEnv env) in
@@ -141,17 +157,20 @@ runActions ms@{ as: (Cons (Cons a as) ra)
             let val' = evalExpr ms env val in do
               case lval of
                    (Var name) ->
-                       let _ = Env.insert env name val' in
-                        liftEffect $ logShow a
+                       let _ = Env.insert env name val' in do
+                           pure next'loop
                    (Dot obj mem) ->
-                       let obj' = evalExpr ms env obj in
+                       let obj' = evalExpr ms env obj in do
                            liftEffect $ updMem obj' mem val'
+                           pure next'loop
                    (Sub obj sub) ->
                        let obj' = evalExpr ms env obj
-                           sub' = evalExpr ms env sub in
+                           sub' = evalExpr ms env sub in do
                            liftEffect $ updMem obj' sub val'
-                   _ -> liftEffect $ logShow "invalid renew"
-              pure next'loop
+                           pure next'loop
+                   _ -> do
+                      liftEffect $ logShow "invalid renew"
+                      pure next'loop
 
         (Value expr) ->
             let val = evalExpr ms env expr in do
@@ -189,8 +208,6 @@ runActions ms@{ as: (Cons (Cons a as) ra)
                    let expr' = evalExpr ms env expr
                        period = toNumber expr' in do
                   Aff.delay (Milliseconds period)
-               (Visit var expr action) ->
-                   liftEffect $ logShow a
                _ -> liftEffect $
                    log $ "unhandled action: " <> show a
 

@@ -12,7 +12,18 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
-event msg (user : "", msg : "喵") { drrr.print("汪")};
+print("beg")
+state hello {
+    print("hello")
+}
+
+hello = {
+    print("call procedure hello")
+}
+
+visit hello
+
+print("end")
 """
 
 execute ctx = case parse parseScript ctx of
@@ -23,6 +34,6 @@ compile ctx = case parse parseScript ctx of
     Right script -> logShow script
     Left err -> log ("error: " <> show err)
 
-main = log "Welcome to use BotScript"
--- m = 0
--- main = (if m == 0 then compile else execute) ctx
+-- main = log "Welcome to use BotScript"
+m = 1
+main = (if m == 0 then compile else execute) ctx

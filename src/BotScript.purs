@@ -66,11 +66,11 @@ data Action
   -- | Sleep Period
   | Delay Expr
   | Going String
+  | Visit String
   | Renew Expr Expr -- note lval
   | Timer Expr Action
   | Group (List Action)
   | While Expr Action
-  | Visit Expr Expr Action -- note var
   | Ifels Expr Action Action
   | Event (Array String) (Array Rule) Action
 
@@ -79,6 +79,7 @@ instance showAction :: Show Action where
     = "(Value " <> show expr <> ")"
   show (Delay time) = "(Delay " <> show time <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"
+  show (Visit stat) = "(Visit " <> show stat <> ")"
   show (Renew lval rvalue)
     = "(Renew " <> show lval <> " " <> show rvalue <> ")"
   show (Timer time action)
@@ -87,11 +88,6 @@ instance showAction :: Show Action where
     = "(Group " <> show actions <> ")"
   show (While expr action)
     = "(While "
-    <> show expr <> " "
-    <> show action <> ")"
-  show (Visit var expr action)
-    = "(Visit "
-    <> show var <> " "
     <> show expr <> " "
     <> show action <> ")"
   show (Ifels prd thn els)
