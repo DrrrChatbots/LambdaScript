@@ -45,10 +45,9 @@ exports.evalUna = op => val => {
     return Object(val - 1);
 }
 
-exports.evalFun = obj => name => args => {
+exports.evalApp = obj => name => args => {
 
   //console.log("call => ", obj, name, args);
-
   try{
     if(!name && typeof(obj) == 'function'){
       val = obj.apply(null, args);
@@ -59,10 +58,9 @@ exports.evalFun = obj => name => args => {
     else val = undefined;
   }
   catch(err){
-    console.log(err.code);
+    console.log(err);
     return {};
   }
-  //console.log("val = ", val);
 
   return val === undefined || val == null ? {} : val;
 }
@@ -117,3 +115,9 @@ exports.clearTimer = state => () => {
 }
 
 exports.toNumber = Number
+
+exports.toVaArgFunction = (fn) => {
+  return function(...args){
+    fn(args)();
+  }
+}

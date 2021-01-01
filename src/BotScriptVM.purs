@@ -1,16 +1,19 @@
 module BotScriptVM where
 
+
 import BotScript
 import Control.Lazy
 import Data.Array
 import Data.Foldable
 import Data.Functor
 import Data.Maybe
+import Data.Traversable
 import Data.Tuple
 import Data.Tuple.Nested
 import DrrrBot
 import Prelude
 
+import BotScriptEnv (Env(..))
 import BotScriptEnv as Env
 import Control.Comonad.Env (env)
 import Control.Monad.Rec.Class (Step(..), tailRec, tailRecM, tailRecM2, untilJust, whileJust)
@@ -27,304 +30,286 @@ import Undefined (undefined)
 -- write state checker
 foreign import none :: forall a. a -> Term
 foreign import bool :: forall a. Term -> a -> a -> a
-foreign import setTimer :: forall a. String -> Term -> (a -> Effect Unit) -> Effect Unit
+foreign import setTimer :: forall a. String -> Term -> Term -> Effect Unit
 foreign import clearTimer :: String -> Effect Unit
 foreign import clearAllTimer :: Effect Unit
 foreign import toNumber :: Term -> Number
 
-runVM (BotScript actions states) =
-    let env = Env.pushEnv Env.Top in do
-    -- for_ actions (\a -> runAction a states env)
-    clearAllTimer
-    clearAllEvent
-    void <<< Aff.launchAff $
-        tailRecM runActions { as: (actions : Nil)
-                            , e: env
-                            , sn: ""
-                            , s: states}
+runExpr expr machine = tailRecM run machine'
+    where machine' = machine { exprs = ((expr : Nil) : Nil) }
 
-type MachineState = { as :: List (List Action)
-                  , e :: Env.Env
-                  , sn :: String
-                  , s :: Array BotState
-                  }
+foreign import evalBin :: String -> Term -> Term -> Term
+foreign import evalUna :: String -> Term -> Term
+foreign import evalApp :: forall a. Term -> a -> (Array Term) -> Term
+foreign import memberOf :: Term -> Term -> Term
+foreign import updMem :: forall a. Term -> a -> Term -> Effect Unit
+foreign import toVaArgFunction :: forall a. a -> Term
 
-runAction act env sname states =
-        tailRecM runActions { as: ((act : Nil) : Nil)
-                            , e: env
-                            , sn: sname
-                            , s: states}
+lvalUpdate ms@{env: env} lval val =
+    case lval of
+        (Var name) ->
+            pure $ Env.insert env name val
+        (Dot obj mem) -> do
+            obj' <- evalExpr ms obj
+            (let _ = updMem obj' mem val in pure env)
+        (Sub obj sub) -> do
+            obj' <- evalExpr ms obj
+            sub' <- evalExpr ms sub
+            (let _ = updMem obj' sub val in pure env)
+        _ -> pure env
 
-runActions :: { as :: List (List Action)
-                  , e :: Env.Env
-                  , sn :: String
-                  , s :: Array BotState
-                  } -> Aff.Aff (Step
-                        { as :: List (List Action)
-                        , e :: Env.Env
-                        , sn :: String
-                        , s :: Array BotState
-                        }
-                        Unit
-                       )
 
-runActions { as: Nil
-           , e: env
-           , sn: sname
-           , s: states} = do
-   liftEffect $ log "Wrong Action."
-   pure (Done unit)
+liftAbs abs@(Abs pars expr) = abs
+liftAbs expr = Abs [] expr
 
-runActions { as: (Cons Nil Nil)
-           , e: env
-           , sn: sname
-           , s: states} = do
-   liftEffect $ log "Action Done."
-   pure (Done unit)
+bind'event'vars :: Array String -> Array String -> Env.Env -> Env.Env
+bind'event'vars syms args enviorn =
+  foldr (\(sym /\ arg) acc ->
+    Env.insert acc sym (toTerm "String" arg)) enviorn (zip syms args)
+    -- TODO: consider valueOf
 
-runActions ms@{ as: (Cons Nil rst)
-           , e: env
-           , sn: sname
-           , s: states} =
-    let pop'env = Env.popEnv env in
-        pure (Loop { as: rst
-                   , e: pop'env
-                   , sn: sname
-                   , s: states})
+make'event'action ::
+    Array String ->
+    Expr -> MachineState -> Term
 
-runActions ms@{ as: (Cons (Cons a as) ra)
-           , e: env
-           , sn: sname
-           , s: states} =
-    let next'loop = Loop { as: (as : ra)
-                          , e: env
-                          , sn: sname
-                          , s: states} in
-    case a of
+make'event'action syms expr machine@{env: env} =
+    toVaArgFunction (\args ->
+    let env' = bind'event'vars syms args env
+        machine' = machine { exprs = ((expr : Nil) : Nil)
+                             , env = env'
+                             } in
+        void <<< Aff.launchAff $ tailRecM run machine')
+
+type MachineState = { val :: Term
+                    , cur :: String
+                    , env :: Env.Env
+                    , exprs :: List (List Expr)
+                    , states :: Array BotState
+                    }
+
+fms = { val: toTerm "" ""
+      , cur: "hello"
+      , env: Env.Top
+      , exprs: Nil
+      , states : []
+      }
+
+-- evalExpr :: MachineState -> Expr -> Term
+evalExpr machine expr = do
+    x <- tailRecM run $ machine { exprs = ((expr : Nil) : Nil) }
+    pure x.val
+
+
+run :: MachineState -> Aff.Aff (Step MachineState MachineState)
+
+run machine@{ exprs: Nil } = do
+   liftEffect $ log "Wrong Expr."
+   pure (Done machine)
+
+run machine@{ exprs: (Cons Nil Nil) } = do
+   -- liftEffect $ log "Expr Done."
+   pure (Done machine)
+
+run machine@{ exprs: (Cons Nil rst) } =
+    pure (Loop $ machine { exprs = rst , env = pop'env})
+    where pop'env = Env.popEnv machine.env
+
+run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
+
+    let machine' = machine { exprs = (exprs : exprss) } in case expr'cur of
+
+        (Trm term) -> pure <<< Loop $ machine' { val = term }
+
+        (Una op val) -> do
+           val' <- evalExpr machine val
+           (let val'' = evalUna op val'
+                loop' = pure <<< Loop $ machine' { val = val' }
+                loop'' = pure <<< Loop $ machine' { val = val'' } in
+                case op of
+                     "_++" -> do
+                         _ <- lvalUpdate machine val val''
+                         loop'
+                     "_--" -> do
+                         _ <- lvalUpdate machine val val''
+                         loop'
+                     "++_" -> do
+                         _ <- lvalUpdate machine val val''
+                         loop''
+                     "--_" -> do
+                         _ <- lvalUpdate machine val val''
+                         loop''
+                     _ -> loop'')
+
+        (Bin op lv rv) -> do
+           lv' <- evalExpr machine lv
+           rv' <- evalExpr machine rv
+           pure <<< Loop $ machine' { val = evalBin op lv' rv' }
+
+        (Abs pars expr) ->
+            let syms = map fst pars
+                grds = map snd pars
+                func = make'event'action syms expr machine
+                -- func = expr'to'abs expr machine undefined
+                                    in do
+                -- guards <- traverse (evalExpr machine) grds
+                -- ^ add guards?
+                pure <<< Loop $ machine' { val = func }
+
+        (App fn args) -> do
+           -- TODO: split case
+           args' <- traverse (evalExpr machine) args
+           case fn of
+                (Dot obj mem) -> do
+                   obj' <- evalExpr machine obj
+                   (let mem' = (toTerm "String" mem) in
+                        pure <<< Loop $ machine' { val = evalApp obj' mem' args' })
+                (Sub obj sub) -> do
+                   obj' <- evalExpr machine obj
+                   sub' <- evalExpr machine sub
+                   pure <<< Loop $ machine' { val = evalApp obj' sub' args' }
+                _ -> do
+                   expr' <- evalExpr machine fn
+                   pure <<< Loop $ machine' { val = evalApp expr' undefined args' }
+
+        (Sub obj sub) -> do
+            obj' <- evalExpr machine obj
+            sub' <- evalExpr machine sub
+            pure <<< Loop $ machine' { val = memberOf obj' sub' }
+
+        (Arr array) -> do
+           val <- toTerm "Array" <$> traverse (evalExpr machine) array
+           pure <<< Loop $ machine' { val = val }
+
+        (Dot obj mem) -> do
+            obj' <- evalExpr machine obj
+            (let mem' = toTerm "String" mem in
+                 pure <<< Loop $ machine' { val = memberOf obj' mem' })
+
+        (Var name) ->
+            -- need handle index
+            case Env.assocVar name machine.env of
+                Just term -> pure <<< Loop $ machine' { val = term }
+                Nothing ->
+                    let none' = none undefined
+                        _ = Env.insert machine.env name none'
+                     in pure <<< Loop $ machine' { val = none' }
+
+
+        {- statement expression -}
+
         (Going dest) ->
             case find (\(BotState name _)
-                       -> name == dest) states of
+                       -> name == dest) machine.states of
               Just (BotState _ acts') ->
                   let top'env = Env.topEnv env in do
-                      liftEffect $ unlisten sname
-                      liftEffect $ clearTimer sname
-                      pure (Loop { as: ((acts' : Nil) : Nil)
-                                 , e: top'env
-                                 , sn: dest
-                                 , s: states})
+                      liftEffect $ unlisten machine.cur
+                      liftEffect $ clearTimer machine.cur
+                      pure (Loop $ machine { cur = dest
+                                           , env = top'env
+                                           , exprs = ((acts' : Nil) : Nil)})
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> dest <> "> not found"
-                  pure (Done unit)
+                  pure (Done machine)
 
         (Visit stat) ->
             case find (\(BotState name _)
-                       -> name == stat) states of
+                       -> name == stat) machine.states of
               Just (BotState _ acts') ->
                   let top'env = Env.topEnv env in do
-                      liftEffect $ unlisten sname
-                      liftEffect $ clearTimer sname
-                      pure (Loop { as: ((acts' : as) : ra)
-                                 , e: top'env
-                                 , sn: stat
-                                 , s: states})
+                      liftEffect $ unlisten machine.cur
+                      liftEffect $ clearTimer machine.cur
+                      pure (Loop machine { cur = stat
+                                         , env = top'env
+                                         , exprs = ((acts' : exprs) : exprss)
+                                         })
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> stat <> "> not found"
-                  pure (Done unit)
+                  pure (Done machine)
 
         (Group actions) ->
-            let _ = logShow a
-                new'env = (Env.pushEnv env) in
-            pure (Loop { as: (actions : as : ra)
-                       , e: new'env
-                       , sn: sname
-                       , s: states})
+            let new'env = (Env.pushEnv env) in
+            pure (Loop $ machine { env = new'env
+                                 , exprs = (actions : exprs : exprss)
+                                 })
 
-        (Value expr) ->
-            let val = evalExpr ms env expr in do
-                pure next'loop
+        -- TODO
+        event@(Event etypes expr) ->
+            let (pars /\ expr') = (case expr of
+                       (Abs pars expr) -> pars /\ expr
+                       _ -> [] /\ expr)
+                syms = map fst pars
+                grds = map snd pars in do
+                guards <- traverse (evalExpr machine) grds
+                liftEffect $ logShow event
+                liftEffect $ listen machine.cur etypes guards
+                    (make'event'action syms expr' machine)
+                pure $ Loop machine'
 
-        (Event etypes rules action) -> do
-            liftEffect $ logShow a
-            liftEffect $ listen sname etypes
-                            (map snd rules)
-                            (make'event'action rules action
-                                        sname states env)
-            pure next'loop
+        (Renew lval val) -> do
+           val' <- evalExpr machine val
+           case lval of
+                (Var name) ->
+                   (let _ = Env.insert env name val' in do
+                        pure $ Loop machine')
+                (Dot obj mem) -> do
+                   obj' <- evalExpr machine obj
+                   liftEffect $ updMem obj' mem val'
+                   pure $ Loop machine'
+                (Sub obj sub) -> do
+                   obj' <- evalExpr machine obj
+                   sub' <- evalExpr machine sub
+                   liftEffect $ updMem obj' sub val'
+                   pure $ Loop machine'
+                _ -> do
+                   liftEffect $ logShow "invalid renew"
+                   pure $ Loop machine'
 
-        (Renew lval val) ->
-            let val' = evalExpr ms env val in do
-              case lval of
-                   (Var name) ->
-                       let _ = Env.insert env name val' in do
-                           pure next'loop
-                   (Dot obj mem) ->
-                       let obj' = evalExpr ms env obj in do
-                           liftEffect $ updMem obj' mem val'
-                           pure next'loop
-                   (Sub obj sub) ->
-                       let obj' = evalExpr ms env obj
-                           sub' = evalExpr ms env sub in do
-                           liftEffect $ updMem obj' sub val'
-                           pure next'loop
-                   _ -> do
-                      liftEffect $ logShow "invalid renew"
-                      pure next'loop
+        (Ifels prd thn els) -> do
+            prd' <- evalExpr machine prd
+            (let act' = bool prd' thn els in
+                pure (Loop $ machine { exprs = ((act' : exprs) : exprss) }))
 
-        (Value expr) ->
-            let val = evalExpr ms env expr in do
-                liftEffect $ log (val.toString undefined)
-                pure next'loop
+        while@(While prd act) -> do
+           prd' <- evalExpr machine prd
+           (let nxt' = bool prd' (act : while : exprs) exprs in do
+                pure (Loop $ machine { exprs = (nxt' : exprss) }))
 
-        (Ifels prd thn els) ->
-            let prd' = evalExpr ms env prd
-                act' = bool prd' thn els in do
-                pure (Loop { as: ((act' : as) : ra)
-                           , e: env
-                           , sn: sname
-                           , s: states})
+        (Timer prd expr) -> do
+           expr' <- evalExpr machine $ liftAbs expr
+           prd' <- evalExpr machine prd
+           liftEffect $ setTimer machine.cur prd' expr'
+           pure $ Loop machine'
 
+        (Delay expr) -> do
+           expr' <- evalExpr machine expr
+           (let period = toNumber expr' in
+                Aff.delay (Milliseconds period))
+           pure $ Loop machine'
 
-        while@(While prd act) ->
-           let prd' = evalExpr ms env prd
-               nxt' = bool prd' (act : while : as) as in do
-                pure (Loop { as: (nxt' : ra)
-                           , e: env
-                           , sn: sname
-                           , s: states})
-
-        (Timer prd act) ->
-           let prd' = evalExpr ms env prd
-               act' = act2effunit act sname states env
-            in do
-               liftEffect $ setTimer sname prd' act'
-               pure next'loop
+        -- (Value expr) ->
+        --     let val = evalExpr machine env expr in do
+        --         liftEffect $ log (val.toString undefined)
+        --         pure $ Loop machine'
 
         action -> do
             case action of
                -- builtins
-               (Delay expr) ->
-                   let expr' = evalExpr ms env expr
-                       period = toNumber expr' in do
-                  Aff.delay (Milliseconds period)
                _ -> liftEffect $
-                   log $ "unhandled action: " <> show a
+                   log $ "unhandled expression: " <> show expr'cur
 
-            pure next'loop
-
-foreign import evalBin :: String -> Term -> Term -> Term
-foreign import evalUna :: String -> Term -> Term
-foreign import evalFun :: forall a. Term -> a -> (Array Term) -> Term
-foreign import memberOf :: Term -> Term -> Term
-foreign import updMem :: forall a. Term -> a -> Term -> Effect Unit
-
-lvalUpdate ms env lval val =
-    case lval of
-        (Var name) ->
-            Env.insert env name val
-        (Dot obj mem) ->
-            let obj' = evalExpr ms env obj
-                _ = updMem obj' mem val in env
-        (Sub obj sub) ->
-            let obj' = evalExpr ms env obj
-                sub' = evalExpr ms env sub
-                _ = updMem obj' sub val in env
-        _ -> env
+            pure $ Loop machine'
 
 
-
-evalExpr :: MachineState -> Env.Env -> Expr -> Term
-evalExpr ms env (Arr array) =
-    toTerm "Array" $ map (evalExpr ms env) array
-
-evalExpr ms env (Bin op lv rv) =
-    evalBin op lv' rv' where
-          lv' = evalExpr ms env lv
-          rv' = evalExpr ms env rv
-
-evalExpr ms env (Una op val) =
-    case op of
-         "_++" ->
-             let _ = lvalUpdate ms env val val'' in val'
-         "_--" ->
-             let _ = lvalUpdate ms env val val'' in val'
-         "++_" ->
-             let _ = lvalUpdate ms env val val'' in val''
-         "--_" ->
-             let _ = lvalUpdate ms env val val'' in val''
-         _ -> val''
-    where val' = evalExpr ms env val
-          val'' = evalUna op val'
-
-evalExpr ms env (Fun expr args) =
-    -- TODO: split case
-    case expr of
-        (Dot obj mem) ->
-            let obj' = evalExpr ms env obj
-                mem' = toTerm "String" mem in
-                evalFun obj' mem' args'
-        (Sub obj sub) ->
-            let obj' = evalExpr ms env obj
-                sub' = evalExpr ms env sub in
-                evalFun obj' sub' args'
-        _ ->
-            let expr' = evalExpr ms env expr in
-                evalFun expr' undefined args'
-    where args' = map (evalExpr ms env) args
-
-evalExpr ms env (Sub obj sub) = memberOf obj' sub'
-    where obj' = evalExpr ms env obj
-          sub' = evalExpr ms env sub
-
-
-evalExpr ms env (Dot obj mem) = memberOf obj' mem'
-    where obj' = evalExpr ms env obj
-          mem' = toTerm "String" mem
-
-evalExpr ms env (Var name) =
-    -- need handle index
-    case Env.assocVar name env of
-        Just term -> term
-        Nothing ->
-            let none' = none undefined
-                _ = Env.insert env name none'
-             in none'
-
-evalExpr ms env (Seq acts) =
-    toTerm "" $ acts2effunit acts ms.sn ms.s env
-
-evalExpr ms env (Trm term) = term
-
-bind'event'vars :: (Array String) -> (Array (String /\ String)) -> Env.Env -> Env.Env
-bind'event'vars args rules enviorn =
-  foldr (\((name /\ _) /\ arg) acc ->
-    Env.insert acc name (toTerm "String" arg)) enviorn (zip rules args)
-    -- TODO: consider valueOf
-
-make'event'action ::
-    Array (Tuple String String) ->
-    Action -> String -> (Array BotState) ->
-    Env.Env -> Array String -> Effect Unit
-
-make'event'action rules action sname states env
-    = \args ->
-        void <<< Aff.launchAff $
-        tailRecM runActions
-        { as: ((action: Nil) : Nil)
-        , e: bind'event'vars args rules env
-        , sn: sname
-        , s: states
-        }
-
-act2effunit act sname states env
-    = acts2effunit (act : Nil) sname states env
-
-acts2effunit acts sname states env
-    = \any -> void <<< Aff.launchAff $
-        tailRecM runActions
-        { as: (acts : Nil)
-        , e: env
-        , sn: sname
-        , s: states
-        }
+runVM (BotScript exprs states) =
+    let env = Env.pushEnv Env.Top in do
+    clearAllTimer
+    clearAllEvent
+    void <<< Aff.launchAff $
+        tailRecM run { val: undefined
+                     , cur: ""
+                     , env: env
+                     , exprs: (exprs : Nil)
+                     , states: states
+                     }

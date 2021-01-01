@@ -2,6 +2,7 @@ module BotScript where
 
 import Data.Array
 import Data.Tuple.Nested
+import Foreign
 import Prelude
 
 import Data.Generic.Rep (class Generic)
@@ -12,25 +13,32 @@ import Effect (Effect)
 import Effect.Exception (name)
 import Undefined (undefined)
 
--- data Var = Var String (Array Expr)
--- instance showVar :: Show Var where
---   show (Var s ns) = "(Var " <> show s <> " " <> show ns <> ")"
+type Term = (Record (toString :: Foreign -> String))
+foreign import toTerm :: forall a. String -> a -> Term
+
+type Args = Array (String /\ Expr)
 
 data Expr
-  = Arr (Array Expr)
-  | Bin String Expr Expr
+  = Trm Term
   | Una String Expr
+  | Bin String Expr Expr
   | Var String
+  | Abs Args Expr
+  | App Expr (Array Expr)
   | Sub Expr Expr
+  | Arr (Array Expr)
   | Dot Expr String
-  | Fun Expr (Array Expr)
-  | Seq (List Action)
-  | Trm Term
-
-type Term = (Record (toString :: (forall a. a) -> String))
-
-
-foreign import toTerm :: forall a. String -> a -> Term
+  | Delay Expr
+  | Going String
+  | Visit String
+  | Renew Expr Expr -- note lval
+  | Timer Expr Expr
+  | Group (List Expr)
+  | While Expr Expr
+  | Ifels Expr Expr Expr
+  | Event (Array String) Expr
+  -- | Cases [...]
+  -- | Sleep Period
 
 instance showExpr :: Show Expr where
   show (Arr  xs) = show xs
@@ -43,13 +51,14 @@ instance showExpr :: Show Expr where
     = "(Una "
     <> show o <> " "
     <> show e <> ")"
-  show (Fun expr args)
-    = "(Fun "
+  show (App expr args)
+    = "(App "
     <> show expr <> " "
     <> show args <> ")"
-  show (Seq acts)
-    = "(Seq "
-    <> show acts <> ")"
+  show (Abs args expr)
+    = "(Abs "
+    <> show args <> " "
+    <> show expr <> ")"
   show (Dot expr attr)
     = show expr <> "." <> show attr
   show (Sub expr sub)
@@ -57,26 +66,6 @@ instance showExpr :: Show Expr where
   show (Var   s) = "(Var " <> show s <> ")"
   show (Trm   term) = term.toString undefined
 
-type Rule = String /\ String
-
--- Value : Title Descr Delay Print Order Going
-data Action
-  = Value Expr
-  -- | Cases [...]
-  -- | Sleep Period
-  | Delay Expr
-  | Going String
-  | Visit String
-  | Renew Expr Expr -- note lval
-  | Timer Expr Action
-  | Group (List Action)
-  | While Expr Action
-  | Ifels Expr Action Action
-  | Event (Array String) (Array Rule) Action
-
-instance showAction :: Show Action where
-  show (Value expr)
-    = "(Value " <> show expr <> ")"
   show (Delay time) = "(Delay " <> show time <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"
   show (Visit stat) = "(Visit " <> show stat <> ")"
@@ -95,18 +84,19 @@ instance showAction :: Show Action where
        <> show prd <> " "
        <> show thn <> " "
        <> show els <> ")"
-  show (Event name rules action)
+  show (Event name expr)
     = "(Event "
        <> show name <> " "
-       <> show rules <> " "
-       <> show action <> ")"
+       <> show expr <> ")"
 
-data BotState = BotState String Action
+  show _ = "undefined"
+
+data BotState = BotState String Expr
 instance showBotState :: Show BotState where
   show (BotState name action) =
     "(BotState " <> name <> " " <> show action <> ")"
 
-data BotScript = BotScript (List Action) (Array BotState)
+data BotScript = BotScript (List Expr) (Array BotState)
 instance showBotScript :: Show BotScript where
   show (BotScript actions states) =
     "(BotScript " <> show actions <> " " <> show states <> ")"

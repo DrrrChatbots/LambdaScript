@@ -34,6 +34,7 @@ import Text.Parsing.Parser.String (anyChar, char, eof, satisfy, string)
 import Text.Parsing.Parser.String (char, oneOf)
 import Text.Parsing.Parser.Token (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter)
 import Text.Parsing.Parser.Token (makeTokenParser)
+import Undefined (undefined)
 
 customStyle :: LanguageDef
 customStyle = LanguageDef (unGenLanguageDef emptyDef)
@@ -46,6 +47,7 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                 , reservedNames   =
                     ["state", "true", "false", "event"
                     , "delay", "going", "if", "else"
+                    , "for", "while", "visit", "timer"
                     -- , "title", "descr" , "print" ,"order"
                     ]
                 , reservedOpNames = [":", ","]
@@ -63,6 +65,7 @@ parseStringLiteral = whiteSpace *> tokParser.stringLiteral
 symbol xs = whiteSpace *> tokParser.symbol xs
 reserved xs = whiteSpace *> tokParser.reserved xs
 reservedOp xs = whiteSpace *> tokParser.reservedOp xs
+reservedOp' xs = whiteSpace *> tokParser.reservedOp xs *> pure xs
 
 parseBoolean = whiteSpace *>
     (reserved "true" *> pure true)
@@ -125,28 +128,57 @@ parseEtypes = (do
       et <- parseEtype
       pure $ [et])
 
-parsePattern = do
+parsePmatch = do
     var <- parseIdentifier
-    maybe <- optionMaybe (reserved ":" *> parseStringLiteral)
+    maybe <- optionMaybe (reserved ":" *> parseExpr)
     case maybe of
          Just pattern -> pure $ var /\ pattern
-         Nothing -> pure $ var /\ ""
+         Nothing -> pure $ var /\ undefined
 
-parseRules = fix $ \self ->
+parseArguments = fix $ \self ->
   (parens $ fromFoldable <$>
-      parsePattern `sepBy` (reserved ",")) <|> pure []
+      parsePmatch `sepBy` (reserved ","))
+  <|> (flip A.(:) [] <$> parsePmatch)
+
+parseAbs exprP = do
+    args <- parseArguments
+    reservedOp "=>"
+    body <- exprP
+    pure $ Abs args body
+
+mustLval lval =
+    case lval of
+        Sub _ _ -> pure lval
+        Var _ -> pure lval
+        Dot _ _ -> pure lval
+        _ -> fail "Expected left value"
+
+parseBinding exprP expr = do
+    whiteSpace
+    op <- reservedOp' "="
+        <|> reservedOp' "+="
+        <|> reservedOp' "-="
+        <|> reservedOp' "*="
+        <|> reservedOp' "/="
+        <|> reservedOp' "%="
+    lval <- mustLval expr
+    rval <- exprP <?> "Binding Expression"
+    case op of
+         "+=" -> pure $ Renew lval (Bin "+" lval expr)
+         "-=" -> pure $ Renew lval (Bin "-" lval expr)
+         "*=" -> pure $ Renew lval (Bin "*" lval expr)
+         "/=" -> pure $ Renew lval (Bin "/" lval expr)
+         "%=" -> pure $ Renew lval (Bin "%" lval expr)
+         _ -> pure $ Renew lval rval
 
 parseTerm exprP = choice
-    [ parseArray exprP
+    [  parens exprP
     , (Trm <<< toTerm "String" <$> parseStringLiteral)
     , (Trm <<< toTerm "Number" <$> parseNumber)
     , (Trm <<< toTerm "Boolean" <$> parseBoolean)
     , (Var <$> parseIdentifier)
-    ,  parens exprP
+    , parseArray exprP
     ]
-
-parseSeq actionP = (braces $ Seq <$> L.many actionP)
-
 
 neg = (Una "-" <$ reservedOp "-")
 not = (Una "!" <$ reservedOp "!")
@@ -160,19 +192,25 @@ dot = (reservedOp "." *>
        parseIdentifier >>= \attr ->
        pure $ \expr -> Dot expr attr)
 
-sub exprP = (brackets $ exprP >>= \sub ->
-       pure $ \expr -> Sub expr sub)
+sub exprP = (brackets $ exprP >>= \sub'expr ->
+       pure $ \expr -> Sub expr sub'expr)
 
-call exprP = (parens $ exprP `sepBy` (string ",") >>=
-    \args -> pure $ \expr -> Fun expr (fromFoldable args))
+parseApp exprP = try do
+    args <- parens $ exprP `sepBy` (string ",")
+    maybe <- optionMaybe (reserved "=>")
+    case maybe of
+       Just _ -> fail "reserved for lambda"
+       Nothing -> pure $ \expr -> App expr (fromFoldable args)
+
 
 binary name assoc =
     Infix ((Bin name) <$ reservedOp name) assoc
 
+
 op'tab exprP =
     [ [prefix $ choice [neg, not, inc'p, dec'p]]
     , [postfix $ choice
-      [call exprP, dot, sub exprP, inc's, dec's]]
+      [parseApp exprP, dot, sub exprP, inc's, dec's]]
     , [binary "<" AssocLeft]
     , [binary "<=" AssocLeft]
     , [binary ">" AssocLeft]
@@ -195,79 +233,50 @@ prefix  p = Prefix  <<< chainl1 p $ pure       (<<<)
 postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
 
 -- try to prevent consume input
-parseExpr :: ParserT String Identity Action ->
-                ParserT String Identity Expr
-parseExpr actionP = fix $ \self ->
+parseExpr :: ParserT String Identity Expr
+parseExpr = fix $ \self -> whiteSpace *> (
     let exprP = buildExprParser
                     (op'tab self)
                     (parseTerm self) in do
-    whiteSpace
-    exprP <|> parseSeq actionP <?> "Expression"
+    try $ parseAbs self
+    <|> (do
+        expr <- try exprP
+        parseBinding self expr <|> pure expr
+        )
+    <|> parseStmtExpr self
+    <?> "Expression"
+)
 
-expr'action = ["title", "descr", "print" ,"order"]
-
-mustLval lval =
-    case lval of
-        Sub _ _ -> pure lval
-        Var _ -> pure lval
-        Dot _ _ -> pure lval
-        _ -> fail "Expected left value"
-
-parseBinding exprP = do
-    lval <- try (exprP >>= mustLval)
-    whiteSpace
-    op <- symbol "="
-        <|> symbol "+="
-        <|> symbol "-="
-        <|> symbol "*="
-        <|> symbol "/="
-        <|> symbol "%="
-    expr <- exprP <?> "Binding Expression"
-    case op of
-         "+=" -> pure $ Renew lval (Bin "+" lval expr)
-         "-=" -> pure $ Renew lval (Bin "-" lval expr)
-         "*=" -> pure $ Renew lval (Bin "*" lval expr)
-         "/=" -> pure $ Renew lval (Bin "/" lval expr)
-         "%=" -> pure $ Renew lval (Bin "%" lval expr)
-         _ -> pure $ Renew lval expr
-
--- parseArgument = fix $ \self ->
---   (parens $ fromFoldable <$>
---       parseExpr `sepBy` (string ","))
---   -- <|> (flip (:) []) <$> parseExpr
-
-parseAction :: ParserT String Identity Action
-parseAction = fix $ \self ->
-    let exprP = parseExpr self in (do
-  action <- (try $ parseBinding exprP
-      <|> (braces $ Group <$> L.many self)
+parseStmtExpr :: ParserT String Identity Expr -> ParserT String Identity Expr
+parseStmtExpr exprP = (do
+  stmtExpr <- (
+      (braces $ Group <$> L.many exprP)
       <|> Delay <$> (reserved "delay" *> exprP)
       <|> (do
           reserved "event"
           name <- parseEtypes
-          rules <- parseRules
-          action <- self
-          pure $ Event name rules action)
+          expr <- exprP
+          pure $ Event name expr)
       <|> (do
           reserved "if"
           prd <- exprP <?> "If Pred"
-          thn <- self <?> "Then Action"
+          thn <- exprP <?> "Then Expr"
           maybe <- optionMaybe (reserved "else")
           case maybe of
              Just _ -> (do
-               els <- self <?> "Else Action"
+               els <- exprP <?> "Else Expr"
                pure $ Ifels prd thn els)
              Nothing -> pure $ Ifels prd thn (Group L.Nil))
       <|> (let
           desc = do
-             init <- self <?> "For Init Action"
+             init <- exprP <?> "For Init Expr"
              cond <- exprP <?> "For Cond Expr"
              P.optional (reserved ";")
-             step <- self <?> "For Step Action"
+             step <- exprP <?> "For Step Expr"
              pure $ init /\ cond /\ step in do
                 reserved "for"
                 init /\ cond /\ step <- (parens desc <|> desc)
-                body <- self <?> "For Body Action"
+                body <- exprP <?> "For Body Expr"
                 pure $ Group (L.fromFoldable
                  [init, While cond
                  (Group (L.fromFoldable [body, step]))])
@@ -275,50 +284,47 @@ parseAction = fix $ \self ->
       <|> (do
           reserved "while"
           prd <- exprP <?> "Pred"
-          act <- self <?> "While Action"
+          act <- exprP <?> "While Expr"
           pure $ While prd act)
       <|> (reserved "going" *> (Going <$> parseIdentifier))
       <|> (reserved "visit" *> (Visit <$> parseIdentifier))
       <|> (do
           reserved "timer"
           prd <- exprP <?> "Timer Period"
-          act <- self <?> "Timer Action"
+          act <- exprP <?> "Timer Expr"
           pure $ Timer prd act)
-      -- Timer
-      -- visit
-      <|> Value <$> exprP
   ) -- may consume, need restore
   P.optional (reserved ";")
-  pure action)
+  pure stmtExpr)
   <|> ((Group L.Nil) <$ reserved ";")
 
 parseState = do
   reserved "state"
   name <- (parseIdentifier <?> "State Name")
-  action <- parseAction
-  pure $ BotState name action
+  expr <- parseExpr
+  pure $ BotState name expr
 
 testParseStates = do
     lookAhead (reserved "state")
     (some parseState >>= \states -> pure (true /\ states))
     <|> pure (false /\ [])
 
-testParseActions =
-    (some parseAction >>= \actions ->
-        pure (true /\ actions))
+testParseExprs =
+    (some parseExpr >>= \exprs ->
+        pure (true /\ exprs))
     <|> pure (false /\ [])
 
 parseScript' = do
         whiteSpace
         (sr /\ states) <- testParseStates
         whiteSpace
-        (ar /\ actions) <- testParseActions
+        (ar /\ exprs) <- testParseExprs
         if sr || ar then
-            pure $ states /\ actions
-        else fail "Expected State or Action"
+            pure $ states /\ exprs
+        else fail "Expected State or Expression"
 
 parseScript = do
-    xs <- some parseScript' <?> "check"
+    xs <- some parseScript'
     eof
     pure let s /\ a = unzip xs in
         BotScript (L.fromFoldable $ concat a) (concat s)

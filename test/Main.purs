@@ -57,7 +57,7 @@ javaStyleTest = do
 botScriptTest :: TestM
 botScriptTest = do
     parseTest "title \"hello\"" "(Title \"hello\")" $
-        parseAction >>= show >>> pure
+        parseExpr >>= show >>> pure
 
 main :: Effect Unit
 main = do
