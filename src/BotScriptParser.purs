@@ -48,6 +48,7 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                     ["state", "true", "false", "event"
                     , "later", "going", "if", "else"
                     , "for", "while", "visit", "timer"
+                    , "in", "of"
                     -- , "title", "descr" , "print" ,"order"
                     ]
                 , reservedOpNames = [":", ","]
@@ -163,6 +164,7 @@ parseBinding exprP expr = do
         <|> reservedOp' "%="
     lval <- mustLval expr
     rval <- exprP <?> "Binding Expression"
+    P.optional (reserved ";")
     case op of
          "+=" -> pure $ Renew lval (Bin "+" lval expr)
          "-=" -> pure $ Renew lval (Bin "-" lval expr)
@@ -206,11 +208,13 @@ parseApp exprP = try do
 binary name assoc =
     Infix ((Bin name) <$ reservedOp name) assoc
 
+prefix  p = Prefix  <<< chainl1 p $ pure       (<<<)
+postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
 
 op'tab exprP =
-    [ [prefix $ choice [neg, not, inc'p, dec'p]]
-    , [postfix $ choice
+    [ [postfix $ choice
       [parseApp exprP, dot, sub exprP, inc's, dec's]]
+    , [prefix $ choice [neg, not, inc'p, dec'p]]
     , [binary "<" AssocLeft]
     , [binary "<=" AssocLeft]
     , [binary ">" AssocLeft]
@@ -229,8 +233,12 @@ op'tab exprP =
     , [binary "||" AssocRight]
     ]
 
-prefix  p = Prefix  <<< chainl1 p $ pure       (<<<)
-postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
+parseLval exprP = whiteSpace *> (
+    buildExprParser
+        [[postfix $ choice
+            [dot, sub exprP]]]
+        (parseTerm exprP)
+)
 
 -- try to prevent consume input
 parseExpr :: ParserT String Identity Expr
@@ -271,7 +279,7 @@ parseStmtExpr exprP = (do
                els <- exprP <?> "Else Expr"
                pure $ Ifels prd thn els)
              Nothing -> pure $ Ifels prd thn (Group L.Nil))
-      <|> (let
+      <|> try (let -- for loop
           desc = do
              init <- exprP <?> "For Init Expr"
              cond <- exprP <?> "For Cond Expr"
@@ -284,6 +292,56 @@ parseStmtExpr exprP = (do
                 pure $ Group (L.fromFoldable
                  [init, While cond
                  (Group (L.fromFoldable [body, step]))])
+            )
+      <|> (let -- for iter in
+          desc = do
+             whiteSpace
+             var <- parseLval exprP <?> "For Var"
+             var' <- mustLval var
+             reserved "in"
+             iter <- exprP <?> "For Iter"
+             pure $ var' /\ iter in do
+                reserved "for"
+                var /\ iter <- (parens desc <|> desc)
+                body <- exprP <?> "For Body Expr"
+                pure $ Group (L.fromFoldable
+                 [ (Renew (Var "@iter")
+                    (App (Dot iter "keys") []))
+                 , (Renew (Var "@it")
+                    (App (Dot (Var "@iter") "next") []))
+                 , While (Una "!" (Dot (Var "@it") "done"))
+                 (Group (L.fromFoldable
+                    [ (Renew var (Dot (Var "@it") "value"))
+                    , body
+                    , (Renew (Var "@it")
+                        (App (Dot (Var "@iter") "next") []))
+                    ]))
+                 ])
+            )
+      <|> (let -- for of
+          desc = do
+             whiteSpace
+             var <- parseLval exprP <?> "For Var"
+             var' <- mustLval var
+             reserved "of"
+             iter <- exprP <?> "For Iter"
+             pure $ var' /\ iter in do
+                reserved "for"
+                var /\ iter <- (parens desc <|> desc)
+                body <- exprP <?> "For Body Expr"
+                pure $ Group (L.fromFoldable
+                 [ (Renew (Var "@iter")
+                    (App (Dot iter "values") []))
+                 , (Renew (Var "@it")
+                    (App (Dot (Var "@iter") "next") []))
+                 , While (Una "!" (Dot (Var "@it") "done"))
+                 (Group (L.fromFoldable
+                    [ (Renew var (Dot (Var "@it") "value"))
+                    , body
+                    , (Renew (Var "@it")
+                        (App (Dot (Var "@iter") "next") []))
+                    ]))
+                 ])
             )
       <|> (do
           reserved "while"
