@@ -20,7 +20,6 @@ import Control.Monad.Rec.Class (Step(..), tailRec, tailRecM, tailRecM2, untilJus
 import Data.List (List(..), (:))
 import Data.Time.Duration (Milliseconds(..))
 import Effect (Effect)
-import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Effect.Console (log, logShow)
 import Foreign.NullOrUndefined (null)
@@ -34,6 +33,8 @@ foreign import setTimer :: forall a. String -> Term -> Term -> Effect Unit
 foreign import clearTimer :: String -> Effect Unit
 foreign import clearAllTimer :: Effect Unit
 foreign import toNumber :: Term -> Number
+foreign import stringify :: forall a. a -> String
+
 
 runExpr expr machine = tailRecM run machine'
     where machine' = machine { exprs = ((expr : Nil) : Nil) }
@@ -65,7 +66,7 @@ liftAbs expr = Abs [] expr
 bind'event'vars :: Array String -> Array String -> Env.Env -> Env.Env
 bind'event'vars syms args enviorn =
   foldr (\(sym /\ arg) acc ->
-    Env.insert acc sym (toTerm "String" arg)) enviorn (zip syms args)
+    Env.insert acc sym (toTerm "" arg)) enviorn (zip syms args)
     -- TODO: consider valueOf
 
 make'event'action ::
@@ -77,8 +78,10 @@ make'event'action syms expr machine@{env: env} =
     let env' = bind'event'vars syms args env
         machine' = machine { exprs = ((expr : Nil) : Nil)
                              , env = env'
-                             } in
-        void <<< Aff.launchAff $ tailRecM run machine')
+                             } in do
+        machine'' <- tailRecM run machine'
+        pure machine''.val
+    )
 
 type MachineState = { val :: Term
                     , cur :: String
@@ -99,8 +102,13 @@ evalExpr machine expr = do
     x <- tailRecM run $ machine { exprs = ((expr : Nil) : Nil) }
     pure x.val
 
+evalExprLiftedStmt machine expr =
+    evalExpr machine (case expr of
+                     g@(Group _) -> liftAbs expr
+                     _ -> expr)
 
-run :: MachineState -> Aff.Aff (Step MachineState MachineState)
+
+run :: MachineState -> Effect (Step MachineState MachineState)
 
 run machine@{ exprs: Nil } = do
    liftEffect $ log "Wrong Expr."
@@ -157,7 +165,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
 
         (App fn args) -> do
            -- TODO: split case
-           args' <- traverse (evalExpr machine) args
+           args' <- traverse (evalExprLiftedStmt machine) args
            case fn of
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
@@ -248,11 +256,11 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 pure $ Loop machine'
 
         (Renew lval val) -> do
-           val' <- evalExpr machine val
+           val' <- evalExprLiftedStmt machine val
            case lval of
                 (Var name) ->
                    (let _ = Env.insert env name val' in do
-                        pure $ Loop machine')
+                       pure $ Loop machine' {val = val'})
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
                    liftEffect $ updMem obj' mem val'
@@ -282,16 +290,9 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
            liftEffect $ setTimer machine.cur prd' expr'
            pure $ Loop machine'
 
-        (Delay expr) -> do
-           expr' <- evalExpr machine expr
-           (let period = toNumber expr' in
-                Aff.delay (Milliseconds period))
-           pure $ Loop machine'
-
-        -- (Value expr) ->
-        --     let val = evalExpr machine env expr in do
-        --         liftEffect $ log (val.toString undefined)
-        --         pure $ Loop machine'
+        (Later prd expr) -> do
+           val <- evalExpr machine $ (App (Var "setTimeout") [liftAbs expr, prd])
+           pure $ Loop machine' -- { val = val }
 
         action -> do
             case action of
@@ -306,10 +307,9 @@ runVM (BotScript exprs states) =
     let env = Env.pushEnv Env.Top in do
     clearAllTimer
     clearAllEvent
-    void <<< Aff.launchAff $
-        tailRecM run { val: undefined
-                     , cur: ""
-                     , env: env
-                     , exprs: (exprs : Nil)
-                     , states: states
-                     }
+    tailRecM run { val: none undefined
+                 , cur: ""
+                 , env: env
+                 , exprs: (exprs : Nil)
+                 , states: states
+                 }

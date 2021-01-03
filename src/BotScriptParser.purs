@@ -46,7 +46,7 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                 , identLetter     = alphaNum <|> oneOf ['_', '$']
                 , reservedNames   =
                     ["state", "true", "false", "event"
-                    , "delay", "going", "if", "else"
+                    , "later", "going", "if", "else"
                     , "for", "while", "visit", "timer"
                     -- , "title", "descr" , "print" ,"order"
                     ]
@@ -251,7 +251,11 @@ parseStmtExpr :: ParserT String Identity Expr -> ParserT String Identity Expr
 parseStmtExpr exprP = (do
   stmtExpr <- (
       (braces $ Group <$> L.many exprP)
-      <|> Delay <$> (reserved "delay" *> exprP)
+      <|> (do
+          reserved "later"
+          time <- exprP
+          expr <- exprP
+          pure $ Later time expr)
       <|> (do
           reserved "event"
           name <- parseEtypes

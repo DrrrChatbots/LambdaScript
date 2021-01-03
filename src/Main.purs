@@ -8,22 +8,37 @@ import Data.Either
 import Prelude
 
 import Data.Foldable (for_)
+import Data.List (List(..))
 import Effect (Effect)
 import Effect.Console (log, logShow)
+import Undefined (undefined)
 
 ctx = """
-timer 1000 (a) => print("hello world");
+f = (a)=> a - 3
+print(f(1 + 1))
 """
 
 execute ctx = case parse parseScript ctx of
     Right script -> do
        runVM script
-    Left err -> log ("error: " <> show err)
+       -- log $ machine.val.toString undefined
+    Left err -> do
+       log ("error: " <> show err)
+       pure $ { val: none undefined
+              , cur: ""
+              , env: Top
+              , exprs: Nil
+              , states: []
+              }
 
 compile ctx = case parse parseScript ctx of
     Right script -> logShow script
     Left err -> log ("error: " <> show err)
 
-main = log "Welcome to use BotScript"
--- m = 1
--- main = (if m == 0 then compile else execute) ctx
+execute' ctx = do
+    machine <- execute ctx
+    log $ stringify machine.val
+
+-- main = log "Welcome to use BotScript"
+m = 1
+main = (if m == 0 then compile else execute') ctx

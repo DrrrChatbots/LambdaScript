@@ -28,7 +28,7 @@ data Expr
   | Sub Expr Expr
   | Arr (Array Expr)
   | Dot Expr String
-  | Delay Expr
+  | Later Expr Expr
   | Going String
   | Visit String
   | Renew Expr Expr -- note lval
@@ -66,7 +66,10 @@ instance showExpr :: Show Expr where
   show (Var   s) = "(Var " <> show s <> ")"
   show (Trm   term) = term.toString undefined
 
-  show (Delay time) = "(Delay " <> show time <> ")"
+  show (Later time expr)
+    = "(Later "
+    <> show time <> " "
+    <> show expr <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"
   show (Visit stat) = "(Visit " <> show stat <> ")"
   show (Renew lval rvalue)

@@ -118,6 +118,7 @@ exports.toNumber = Number
 
 exports.toVaArgFunction = (fn) => {
   return function(...args){
-    fn(args)();
+    return fn(args)();
   }
 }
+exports.stringify = JSON.stringify
