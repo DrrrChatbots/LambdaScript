@@ -65,7 +65,7 @@ liftAbs expr = Abs [] expr
 bind'event'vars :: Array String -> Array String -> Env.Env -> Env.Env
 bind'event'vars syms args enviorn =
   foldr (\(sym /\ arg) acc ->
-    Env.insert acc sym (toTerm "String" arg)) enviorn (zip syms args)
+    Env.insert acc sym (toTerm "" arg)) enviorn (zip syms args)
     -- TODO: consider valueOf
 
 make'event'action ::
