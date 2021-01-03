@@ -4,7 +4,6 @@ module BotScriptVM where
 import BotScript
 import Control.Lazy
 import Data.Array
-import Data.Array as A
 import Data.Foldable
 import Data.Functor
 import Data.Maybe
@@ -18,6 +17,7 @@ import BotScriptEnv (Env(..))
 import BotScriptEnv as Env
 import Control.Comonad.Env (env)
 import Control.Monad.Rec.Class (Step(..), tailRec, tailRecM, tailRecM2, untilJust, whileJust)
+import Data.Array as A
 import Data.List (List(..), (:))
 import Data.Time.Duration (Milliseconds(..))
 import Effect (Effect)
@@ -36,13 +36,12 @@ foreign import clearAllTimer :: Effect Unit
 foreign import toNumber :: Term -> Number
 foreign import stringify :: forall a. a -> String
 
-
 runExpr expr machine = tailRecM run machine'
     where machine' = machine { exprs = ((expr : Nil) : Nil) }
 
 foreign import evalBin :: String -> Term -> Term -> Term
 foreign import evalUna :: String -> Term -> Term
-foreign import evalApp :: forall a. Term -> a -> (Array Term) -> Term
+foreign import evalApp :: forall a. String -> Term -> a -> (Array Term) -> Term
 foreign import memberOf :: Term -> Term -> Term
 foreign import updMem :: forall a. Term -> a -> Term -> Effect Unit
 foreign import toVaArgFunction :: forall a. a -> Term
@@ -108,6 +107,10 @@ evalExprLiftedStmt machine expr =
                      g@(Group _) -> liftAbs expr
                      _ -> expr)
 
+detailShow (Var name) = name
+detailShow (Dot obj attr) = detailShow obj <> "." <> attr
+detailShow (Sub obj attr) = detailShow obj <> "[" <> detailShow attr <> "]"
+detailShow obj = show obj
 
 run :: MachineState -> Effect (Step MachineState MachineState)
 
@@ -171,14 +174,14 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
                    (let mem' = (toTerm "String" mem) in
-                        pure <<< Loop $ machine' { val = evalApp obj' mem' args' })
+                        pure <<< Loop $ machine' { val = evalApp (detailShow obj) obj' mem' args' })
                 (Sub obj sub) -> do
                    obj' <- evalExpr machine obj
                    sub' <- evalExpr machine sub
-                   pure <<< Loop $ machine' { val = evalApp obj' sub' args' }
+                   pure <<< Loop $ machine' { val = evalApp (detailShow obj) obj' sub' args' }
                 _ -> do
                    expr' <- evalExpr machine fn
-                   pure <<< Loop $ machine' { val = evalApp expr' undefined args' }
+                   pure <<< Loop $ machine' { val = evalApp (detailShow fn) expr' undefined args' }
 
         (Sub obj sub) -> do
             obj' <- evalExpr machine obj
@@ -203,6 +206,16 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                         _ = Env.insert machine.env name none'
                      in pure <<< Loop $ machine' { val = none' }
 
+        (Obj pairs) ->
+            let keys /\ values = unzip pairs
+                keys' = map (toTerm "") keys in do
+                values' <- traverse (evalExpr machine) values
+                val <- evalExpr machine
+                    (App (Dot (Var "Object") "fromEntries")
+                        [Trm $ toTerm "" (zipWith
+                        (\a b -> toTerm "" [a, b])
+                        keys' values')])
+                pure <<< Loop $ machine' { val = val }
 
         {- statement expression -}
 

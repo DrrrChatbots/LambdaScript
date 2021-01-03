@@ -15,6 +15,7 @@ import Undefined (undefined)
 
 type Term = (Record (toString :: Foreign -> String))
 foreign import toTerm :: forall a. String -> a -> Term
+foreign import stringify_ :: forall a. a -> String
 
 type Args = Array (String /\ Expr)
 
@@ -23,6 +24,7 @@ data Expr
   | Una String Expr
   | Bin String Expr Expr
   | Var String
+  | Obj (Array (String /\ Expr))
   | Abs Args Expr
   | App Expr (Array Expr)
   | Sub Expr Expr
@@ -64,7 +66,8 @@ instance showExpr :: Show Expr where
   show (Sub expr sub)
     = show expr <> "[" <> show sub <> "]"
   show (Var   s) = "(Var " <> show s <> ")"
-  show (Trm   term) = term.toString undefined
+  show (Obj   pairs) = "(Obj " <> show pairs <> ")"
+  show (Trm   term) = stringify_ term
 
   show (Later time expr)
     = "(Later "

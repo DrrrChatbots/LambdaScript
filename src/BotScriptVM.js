@@ -45,15 +45,23 @@ exports.evalUna = op => val => {
     return Object(val - 1);
 }
 
-exports.evalApp = obj => name => args => {
+exports.evalApp = objm => obj => name => args => {
 
   //console.log("call => ", obj, name, args);
+
   try{
-    if(!name && typeof(obj) == 'function'){
-      val = obj.apply(null, args);
+    if(!name){
+      if(typeof(obj) == 'function')
+        val = obj.apply(null, args);
+      else console.log(objm, "is not a function")
     }
-    else if(obj && obj[name]){
-      val = obj[name].apply(obj, args);
+    else if(obj){
+      if(obj[name]){
+        if(typeof(obj[name]) == 'function')
+          val = obj[name].apply(obj, args);
+        else console.log(`${objm}.${name} is not a function`)
+      }
+      else console.log(`${name} of ${objm} is undefined`)
     }
     else val = undefined;
   }
@@ -121,4 +129,5 @@ exports.toVaArgFunction = (fn) => {
     return fn([args].concat(args))();
   }
 }
+
 exports.stringify = JSON.stringify

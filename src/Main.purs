@@ -21,9 +21,6 @@ ctx = """
 //for(it = iter.next(); !it.done; it = iter.next()){
 //	print(it);
 //}
-a = [1,2,3,4]
-for(i in a) print(i)
-for(i of a) print(i)
 """
 
 execute ctx = case parse parseScript ctx of
@@ -45,8 +42,8 @@ compile ctx = case parse parseScript ctx of
 
 execute' ctx = do
     machine <- execute ctx
-    log $ machine.val.toString undefined
+    log $ "=> " <> stringify_ machine.val
 
-main = log "Welcome to use BotScript"
--- m = 1
--- main = (if m == 0 then compile else execute') ctx
+-- main = log "Welcome to use BotScript"
+m = 1
+main = (if m == 0 then compile else execute') ctx

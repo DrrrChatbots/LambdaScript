@@ -78,7 +78,7 @@ parseNumber = whiteSpace *>
 
 parseArray exprP = fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
-      exprP `sepBy` (string ","))
+      exprP `sepEndBy` (string ","))
 
 -- event'types =
 --     [ "join"
@@ -124,7 +124,7 @@ parseEtype = (choice $ map (\n ->
 
 parseEtypes = (do
   (brackets $ fromFoldable <$>
-      parseEtype `sepBy` (string ",")))
+      parseEtype `sepEndBy` (string ",")))
   <|> (do
       et <- parseEtype
       pure $ [et])
@@ -138,7 +138,7 @@ parsePmatch = do
 
 parseArguments = fix $ \self ->
   (parens $ fromFoldable <$>
-      parsePmatch `sepBy` (reserved ","))
+      parsePmatch `sepEndBy` (reserved ","))
   <|> (flip A.(:) [] <$> parsePmatch)
 
 parseAbs exprP = do
@@ -198,7 +198,7 @@ sub exprP = (brackets $ exprP >>= \sub'expr ->
        pure $ \expr -> Sub expr sub'expr)
 
 parseApp exprP = try do
-    args <- parens $ exprP `sepBy` (string ",")
+    args <- parens $ exprP `sepEndBy` (string ",")
     maybe <- optionMaybe (reserved "=>")
     case maybe of
        Just _ -> fail "reserved for lambda"
@@ -246,14 +246,28 @@ parseExpr = fix $ \self -> whiteSpace *> (
     let exprP = buildExprParser
                     (op'tab self)
                     (parseTerm self) in do
-    try $ parseAbs self
+    (try $ parseAbs self)
     <|> (do
         expr <- try exprP
         parseBinding self expr <|> pure expr
         )
+    <|> (try $ parseObject self)
     <|> parseStmtExpr self
     <?> "Expression"
 )
+
+parseObject :: ParserT String Identity Expr -> ParserT String Identity Expr
+parseObject exprP = let
+    parseItem = do
+       key <- parseIdentifier
+       reserved ":"
+       value <- exprP
+       pure $ key /\ value
+    parseItems = do
+       items <- parseItem `sepEndBy` (string ",")
+       pure $ fromFoldable items in do
+          pairs <- braces $ parseItems
+          pure $ Obj pairs
 
 parseStmtExpr :: ParserT String Identity Expr -> ParserT String Identity Expr
 parseStmtExpr exprP = (do
