@@ -240,6 +240,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
         (Group actions) ->
             let new'env = (Env.pushEnv env) in
             pure (Loop $ machine { env = new'env
+                                 , val = none undefined
                                  , exprs = (actions : exprs : exprss)
                                  })
 
@@ -254,7 +255,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 liftEffect $ logShow event
                 liftEffect $ listen machine.cur etypes guards
                     (make'event'action syms expr' machine)
-                pure $ Loop machine'
+                pure $ Loop machine' { val = none undefined }
 
         (Renew lval val) -> do
            val' <- evalExprLiftedStmt machine val
@@ -289,11 +290,11 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
            expr' <- evalExpr machine $ liftAbs expr
            prd' <- evalExpr machine prd
            liftEffect $ setTimer machine.cur prd' expr'
-           pure $ Loop machine'
+           pure $ Loop machine' { val = none undefined }
 
         (Later prd expr) -> do
            val <- evalExpr machine $ (App (Var "setTimeout") [liftAbs expr, prd])
-           pure $ Loop machine' -- { val = val }
+           pure $ Loop machine' { val = val }
 
         action -> do
             case action of
@@ -301,7 +302,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                _ -> liftEffect $
                    log $ "unhandled expression: " <> show expr'cur
 
-            pure $ Loop machine'
+            pure $ Loop machine' { val = none undefined }
 
 
 runVM (BotScript exprs states) =
