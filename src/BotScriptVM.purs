@@ -265,15 +265,15 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
                    liftEffect $ updMem obj' mem val'
-                   pure $ Loop machine'
+                   pure $ Loop machine' {val = val'}
                 (Sub obj sub) -> do
                    obj' <- evalExpr machine obj
                    sub' <- evalExpr machine sub
                    liftEffect $ updMem obj' sub val'
-                   pure $ Loop machine'
+                   pure $ Loop machine' {val = val'}
                 _ -> do
                    liftEffect $ logShow "invalid renew"
-                   pure $ Loop machine'
+                   pure $ Loop machine' {val = val'}
 
         (Ifels prd thn els) -> do
             prd' <- evalExpr machine prd

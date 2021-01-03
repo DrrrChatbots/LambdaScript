@@ -15,7 +15,6 @@ import Undefined (undefined)
 
 ctx = """
 f = { print(args.length) }
-print(f(1, 2, 3, 4))
 """
 
 execute ctx = case parse parseScript ctx of
@@ -37,8 +36,8 @@ compile ctx = case parse parseScript ctx of
 
 execute' ctx = do
     machine <- execute ctx
-    log $ stringify machine.val
+    log $ machine.val.toString undefined
 
--- main = log "Welcome to use BotScript"
-m = 1
-main = (if m == 0 then compile else execute') ctx
+main = log "Welcome to use BotScript"
+-- m = 1
+-- main = (if m == 0 then compile else execute') ctx
