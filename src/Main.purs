@@ -12,7 +12,8 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
-timer 1000 (a) => print("hello world");
+f = (x) => print(args.length)
+f("hello world", 1, 2)
 """
 
 execute ctx = case parse parseScript ctx of
@@ -24,6 +25,6 @@ compile ctx = case parse parseScript ctx of
     Right script -> logShow script
     Left err -> log ("error: " <> show err)
 
-main = log "Welcome to use BotScript"
--- m = 1
--- main = (if m == 0 then compile else execute) ctx
+-- main = log "Welcome to use BotScript"
+m = 1
+main = (if m == 0 then compile else execute) ctx

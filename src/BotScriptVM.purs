@@ -4,6 +4,7 @@ module BotScriptVM where
 import BotScript
 import Control.Lazy
 import Data.Array
+import Data.Array as A
 import Data.Foldable
 import Data.Functor
 import Data.Maybe
@@ -74,7 +75,7 @@ make'event'action ::
 
 make'event'action syms expr machine@{env: env} =
     toVaArgFunction (\args ->
-    let env' = bind'event'vars syms args env
+    let env' = bind'event'vars (A.(:) "args" syms) args env
         machine' = machine { exprs = ((expr : Nil) : Nil)
                              , env = env'
                              } in
