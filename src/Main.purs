@@ -28,7 +28,6 @@ for(i of a) print(i)
 
 execute ctx = case parse parseScript ctx of
     Right script -> do
-       logShow script
        runVM script
        -- log $ machine.val.toString undefined
     Left err -> do
