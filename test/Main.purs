@@ -14,12 +14,12 @@ import Effect.Console (log, logShow)
 import Undefined (undefined)
 
 ctx = """
-//@k = 3;
-//obj = [1,2,3,4]
-iter = obj.values()
-for(it = iter.next(); !it.done; it = iter.next()){
-	print(it);
-}
+f = (x) =>
+  if(x <= 0) 0
+  else if(x == 1) 1
+  else f(x - 1) + f(x - 2)
+
+[0, 1,2,3,4,5,6].map(f)
 """
 execute ctx = case parse parseScript ctx of
     Right script -> do

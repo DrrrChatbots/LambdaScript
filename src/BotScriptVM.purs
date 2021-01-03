@@ -75,7 +75,7 @@ make'event'action ::
 
 make'event'action syms expr machine@{env: env} =
     toVaArgFunction (\args ->
-    let env' = bind'event'vars (A.(:) "args" syms) args env
+    let env' = bind'event'vars (A.(:) "args" syms) args (Env.pushEnv env)
         machine' = machine { exprs = ((expr : Nil) : Nil)
                              , env = env'
                              } in do
