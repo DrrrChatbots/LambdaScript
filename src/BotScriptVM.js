@@ -118,7 +118,7 @@ exports.toNumber = Number
 
 exports.toVaArgFunction = (fn) => {
   return function(...args){
-    return fn(args)();
+    return fn([args].concat(args))();
   }
 }
 exports.stringify = JSON.stringify

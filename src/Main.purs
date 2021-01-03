@@ -14,8 +14,8 @@ import Effect.Console (log, logShow)
 import Undefined (undefined)
 
 ctx = """
-f = (a)=> a - 3
-print(f(1 + 1))
+f = { print(args.length) }
+print(f(1, 2, 3, 4))
 """
 
 execute ctx = case parse parseScript ctx of
