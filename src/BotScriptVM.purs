@@ -100,6 +100,11 @@ evalExpr machine expr = do
     x <- tailRecM run $ machine { exprs = ((expr : Nil) : Nil) }
     pure x.val
 
+evalExprLiftedStmt machine expr =
+    evalExpr machine (case expr of
+                     g@(Group _) -> liftAbs expr
+                     _ -> expr)
+
 
 run :: MachineState -> Aff.Aff (Step MachineState MachineState)
 
@@ -158,7 +163,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
 
         (App fn args) -> do
            -- TODO: split case
-           args' <- traverse (evalExpr machine) args
+           args' <- traverse (evalExprLiftedStmt machine) args
            case fn of
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
@@ -249,7 +254,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 pure $ Loop machine'
 
         (Renew lval val) -> do
-           val' <- evalExpr machine val
+           val' <- evalExprLiftedStmt machine val
            case lval of
                 (Var name) ->
                    (let _ = Env.insert env name val' in do
@@ -289,11 +294,6 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 Aff.delay (Milliseconds period))
            pure $ Loop machine'
 
-        -- (Value expr) ->
-        --     let val = evalExpr machine env expr in do
-        --         liftEffect $ log (val.toString undefined)
-        --         pure $ Loop machine'
-
         action -> do
             case action of
                -- builtins
@@ -308,7 +308,7 @@ runVM (BotScript exprs states) =
     clearAllTimer
     clearAllEvent
     void <<< Aff.launchAff $
-        tailRecM run { val: undefined
+        tailRecM run { val: none undefined
                      , cur: ""
                      , env: env
                      , exprs: (exprs : Nil)

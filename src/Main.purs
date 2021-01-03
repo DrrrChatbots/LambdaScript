@@ -12,8 +12,7 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 
 ctx = """
-f = (x) => print(args.length)
-f("hello world", 1, 2)
+f = ((a, b, c)=>{ print(args, a, b, c, d) })(1, 2, 3)
 """
 
 execute ctx = case parse parseScript ctx of
