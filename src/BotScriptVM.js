@@ -49,6 +49,7 @@ exports.evalApp = objm => obj => name => args => {
 
   //console.log("call => ", obj, name, args);
 
+  val = undefined;
   try{
     if(!name){
       if(typeof(obj) == 'function')

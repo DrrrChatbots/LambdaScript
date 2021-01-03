@@ -1,66 +1,46 @@
 module Test.Main where
 
-import Prelude (class Eq, class Show, Unit, discard, pure, show, ($), (*>), (<>), (==), (>>=), (>>>))
-
-import Data.Either (Either(..))
-import Effect (Effect)
-import Effect.Console (logShow)
-import Test.Assert (assert')
-import Text.Parsing.Parser (Parser, runParser, parseErrorPosition)
-import Text.Parsing.Parser.Language (javaStyle)
-import Text.Parsing.Parser.Pos (Position(..))
-import Text.Parsing.Parser.Token (makeTokenParser)
-
+import BotScript
+import BotScriptEnv
 import BotScriptParser
+import BotScriptVM
+import Data.Either
+import Prelude
 
-mkPos :: Int -> Position
-mkPos n = mkPos' n 1
+import Data.Array.ST.Iterator (next)
+import Data.List (List(..))
+import Effect (Effect)
+import Effect.Console (log, logShow)
+import Undefined (undefined)
 
-mkPos' :: Int -> Int -> Position
-mkPos' column line = Position { column: column, line: line }
+ctx = """
+//@k = 3;
+//obj = [1,2,3,4]
+iter = obj.values()
+for(it = iter.next(); !it.done; it = iter.next()){
+	print(it);
+}
+"""
+execute ctx = case parse parseScript ctx of
+    Right script -> do
+       runVM script
+       -- log $ machine.val.toString undefined
+    Left err -> do
+       log ("error: " <> show err)
+       pure $ { val: none undefined
+              , cur: ""
+              , env: Top
+              , exprs: Nil
+              , states: []
+              }
 
+compile ctx = case parse parseScript ctx of
+    Right script -> logShow script
+    Left err -> log ("error: " <> show err)
 
-type TestM = Effect Unit
+execute' ctx = do
+    machine <- execute ctx
+    log $ "=> " <> stringify_ machine.val
 
-parseErrorTestPosition :: forall s a. Show a => Parser s a -> s -> Position -> Effect Unit
-parseErrorTestPosition p input expected = case runParser input p of
-  Right _ -> assert' "error: ParseError expected!" false
-  Left err -> do
-    let pos = parseErrorPosition err
-    assert' ("expected: " <> show expected <> ", pos: " <> show pos) (expected == pos)
-    logShow expected
-
-
-
-parseTest :: forall s a. Show a => Eq a => s -> a -> Parser s a -> Effect Unit
-parseTest input expected p = case runParser input p of
-  Right actual -> do
-    assert' ("expected: " <> show expected <> ", actual: " <> show actual) (expected == actual)
-    logShow actual
-  Left err -> assert' ("error: " <> show err) false
-
-javaStyleTest :: TestM
-javaStyleTest = do
-    let javaTokParser = makeTokenParser javaStyle
-    -- make sure java-style comments work
-    parseTest "hello /* comment\n */ fo_" "fo_" $ javaTokParser.identifier *> javaTokParser.identifier
-
-    -- make sure java-style identifier work
-    parseTest "$hello /* comment\n */ _f$o_" "_f$o_" $ javaTokParser.identifier *> javaTokParser.identifier
-
-    -- make sure haskell-style comments do not work
-    parseErrorTestPosition
-        (javaTokParser.identifier *> javaTokParser.identifier)
-        "hello {- comment\n -} foo"
-        (mkPos 7)
-
-botScriptTest :: TestM
-botScriptTest = do
-    parseTest "title \"hello\"" "(Title \"hello\")" $
-        parseExpr >>= show >>> pure
-
-main :: Effect Unit
-main = do
-  javaStyleTest
-  botScriptTest
-
+m = 1
+main = (if m == 0 then compile else execute') ctx
