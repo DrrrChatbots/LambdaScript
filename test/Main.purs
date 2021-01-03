@@ -14,12 +14,19 @@ import Effect.Console (log, logShow)
 import Undefined (undefined)
 
 ctx = """
-f = (x) =>
-  if(x <= 0) 0
-  else if(x == 1) 1
-  else f(x - 1) + f(x - 2)
+for i = 0
+    i < 10
+    i++
+    print(i)
 
-[0, 1,2,3,4,5,6].map(f)
+j = 0
+while(j < 3){
+    print(j);
+    j++;
+}
+
+for(i of [1,2,3,4]) print(i);
+for(j in {tom: 1, allen: 2}) print(j);
 """
 execute ctx = case parse parseScript ctx of
     Right script -> do

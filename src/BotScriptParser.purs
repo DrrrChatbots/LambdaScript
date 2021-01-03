@@ -320,7 +320,11 @@ parseStmtExpr exprP = (do
                 body <- exprP <?> "For Body Expr"
                 pure $ Group (L.fromFoldable
                  [ (Renew (Var "@iter")
-                    (App (Dot iter "keys") []))
+                    (App (Dot
+                        (App (Dot
+                             (Var "Object") "keys") [iter]
+                        ) "values") [])
+                    )
                  , (Renew (Var "@it")
                     (App (Dot (Var "@iter") "next") []))
                  , While (Una "!" (Dot (Var "@it") "done"))
@@ -345,7 +349,10 @@ parseStmtExpr exprP = (do
                 body <- exprP <?> "For Body Expr"
                 pure $ Group (L.fromFoldable
                  [ (Renew (Var "@iter")
-                    (App (Dot iter "values") []))
+                    (App (Dot
+                        (App (Dot
+                            (Var "Object") "values") [iter])
+                        "values") []))
                  , (Renew (Var "@it")
                     (App (Dot (Var "@iter") "next") []))
                  , While (Una "!" (Dot (Var "@it") "done"))
