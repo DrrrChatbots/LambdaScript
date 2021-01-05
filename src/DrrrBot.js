@@ -61,5 +61,5 @@ exports.listen = state => types => args => next => () => {
     types, user_regex, cont_regex, next
   ])
 
-  console.log(`Event ${types} ${JSON.stringify(args)}`);
+  //console.log(`Event ${types} ${JSON.stringify(args)}`);
 }
