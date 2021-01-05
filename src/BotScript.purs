@@ -33,6 +33,7 @@ data Expr
   | Later Expr Expr
   | Going String
   | Visit String
+  | Reset String
   | Renew Expr Expr -- note lval
   | Timer Expr Expr
   | Group (List Expr)
@@ -75,6 +76,7 @@ instance showExpr :: Show Expr where
     <> show expr <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"
   show (Visit stat) = "(Visit " <> show stat <> ")"
+  show (Reset stat) = "(Reset " <> show stat <> ")"
   show (Renew lval rvalue)
     = "(Renew " <> show lval <> " " <> show rvalue <> ")"
   show (Timer time action)

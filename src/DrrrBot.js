@@ -47,9 +47,9 @@ exports.clearAllEvent = () => {
   exports.events = {};
 }
 
-exports.unlisten = state => () => {
+exports.setcur = state => () => {
+  exports.events[exports.cur] = [];
   exports.cur = state;
-  exports.events[state] = [];
 }
 
 exports.listen = state => types => args => next => () => {

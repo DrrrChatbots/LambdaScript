@@ -224,7 +224,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                        -> name == dest) machine.states of
               Just (BotState _ acts') ->
                   let top'env = Env.topEnv env in do
-                      liftEffect $ unlisten machine.cur
+                      liftEffect $ setcur dest
                       liftEffect $ clearTimer machine.cur
                       pure (Loop $ machine { cur = dest
                                            , env = top'env
@@ -239,16 +239,20 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                        -> name == stat) machine.states of
               Just (BotState _ acts') ->
                   let top'env = Env.topEnv env in do
-                      liftEffect $ unlisten machine.cur
+                      liftEffect $ setcur stat
                       liftEffect $ clearTimer machine.cur
                       pure (Loop machine { cur = stat
                                          , env = top'env
-                                         , exprs = ((acts' : exprs) : exprss)
+                                         , exprs = ((acts' : (Reset machine.cur) : exprs) : exprss)
                                          })
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> stat <> "> not found"
                   pure (Done machine)
+
+        (Reset stat) -> do
+            liftEffect $ setcur stat
+            pure $ Loop machine'
 
         (Group actions) ->
             let new'env = (Env.pushEnv env) in
