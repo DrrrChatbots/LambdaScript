@@ -134,7 +134,7 @@ parsePmatch = do
     maybe <- optionMaybe (reserved ":" *> parseExpr)
     case maybe of
          Just pattern -> pure $ var /\ pattern
-         Nothing -> pure $ var /\ undefined
+         Nothing -> pure $ var /\ (Trm $ toTerm "String" "")
 
 parseArguments = fix $ \self ->
   (parens $ fromFoldable <$>

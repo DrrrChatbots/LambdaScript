@@ -265,7 +265,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 syms = map fst pars
                 grds = map snd pars in do
                 guards <- traverse (evalExpr machine) grds
-                liftEffect $ logShow event
+                -- liftEffect $ logShow event
                 liftEffect $ listen machine.cur etypes guards
                     (make'event'action syms expr' machine)
                 pure $ Loop machine' { val = none undefined }
