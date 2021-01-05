@@ -2,54 +2,56 @@ exports.evalBin = op => lval => rval => {
   lval = lval.valueOf();
   rval = rval.valueOf();
   if(op == "%")
-    return Object(lval % rval);
+    return (lval % rval);
   else if(op == "/")
-    return Object(lval / rval);
+    return (lval / rval);
   else if(op == '*')
-    return Object(lval * rval);
+    return (lval * rval);
   else if(op == '+')
-    return Object(lval + rval);
+    return (lval + rval);
   else if(op == '-')
-    return Object(lval - rval);
+    return (lval - rval);
   else if(op == '>')
-    return Object(lval > rval);
+    return (lval > rval);
   else if(op == '>=')
-    return Object(lval >= rval);
+    return (lval >= rval);
   else if(op == '<')
-    return Object(lval < rval);
+    return (lval < rval);
   else if(op == '<=')
-    return Object(lval <= rval);
+    return (lval <= rval);
   else if(op == '==')
-    return Object(lval == rval);
+    return (lval == rval);
   else if(op == '!=')
-    return Object(lval != rval);
+    return (lval != rval);
   else if(op == '===')
-    return Object(lval === rval);
+    return (lval === rval);
   else if(op == '!==')
-    return Object(lval !== rval);
+    return (lval !== rval);
   else if(op == '&&')
-    return Object(lval && rval);
+    return (lval && rval);
   else if(op == '||')
-    return Object(lval || rval);
+    return (lval || rval);
   else if(op == 'in')
-    return Object(lval in rval);
+    return (lval in rval);
 }
 
 exports.evalUna = op => val => {
   val = val.valueOf();
   if(op == "!")
-    return Object(!val);
+    return (!val);
   else if(op == '-')
-    return Object(-val);
+    return (-val);
   else if(op == '_++' || op == '++_')
-    return Object(val + 1);
+    return (val + 1);
   else if(op == '_--' || op == '--_')
-    return Object(val - 1);
+    return (val - 1);
 }
 
 exports.evalApp = objm => obj => name => args => {
 
   //console.log("call => ", obj, name, args);
+  args = args.map((x)=> x && x.valueOf ? x.valueOf() : x);
+  console.log(obj, name, args)
 
   val = undefined;
   try{

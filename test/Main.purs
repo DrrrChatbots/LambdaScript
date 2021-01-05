@@ -15,7 +15,7 @@ import Undefined (undefined)
 
 ctx = """
 a = [1,2,3]
-3 in a
+a.includes(3)
 """
 execute ctx = case parse parseScript ctx of
     Right script -> do

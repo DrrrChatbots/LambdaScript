@@ -4,9 +4,9 @@ exports.toTerm =
     if(constructorName == "")
       return literal;
     else if(constructorName == "Array"){
-      return Object(literal);
+      return (literal);
     }
-    return Object(globalThis[constructorName](literal));
+    return (globalThis[constructorName](literal));
   }
 
 exports.toExprFFI = constructors => val => {
