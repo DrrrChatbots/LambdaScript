@@ -20,8 +20,10 @@ exports.toExprFFI = constructors => val => {
 
 exports.stringify_ = obj => {
   str = JSON.stringify(obj)
-  if(typeof obj == 'function')
-    str = 'function'
+  if(obj === undefined)
+    str = "undefined";
+  else if(typeof obj == 'function')
+    str = 'function';
   else if(str === undefined && obj.toString)
     str = obj.toString();
   return str;

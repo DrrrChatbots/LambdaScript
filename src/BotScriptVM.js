@@ -31,6 +31,8 @@ exports.evalBin = op => lval => rval => {
     return Object(lval && rval);
   else if(op == '||')
     return Object(lval || rval);
+  else if(op == 'in')
+    return Object(lval in rval);
 }
 
 exports.evalUna = op => val => {

@@ -14,19 +14,8 @@ import Effect.Console (log, logShow)
 import Undefined (undefined)
 
 ctx = """
-for i = 0
-    i < 10
-    i++
-    print(i)
-
-j = 0
-while(j < 3){
-    print(j);
-    j++;
-}
-
-for(i of [1,2,3,4]) print(i);
-for(j in {tom: 1, allen: 2}) print(j);
+a = [1,2,3]
+3 in a
 """
 execute ctx = case parse parseScript ctx of
     Right script -> do
