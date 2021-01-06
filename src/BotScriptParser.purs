@@ -202,12 +202,13 @@ dot = (reservedOp "." *>
 sub exprP = (brackets $ exprP >>= \sub'expr ->
        pure $ \expr -> Sub expr sub'expr)
 
-parseApp exprP = try do
-    args <- parens $ exprP `sepEndBy` (string ",")
+parseApp exprP = do
     maybe <- optionMaybe (reserved "=>")
     case maybe of
        Just _ -> fail "reserved for lambda"
-       Nothing -> pure $ \expr -> App expr (fromFoldable args)
+       Nothing -> do
+        args <- parens $ exprP `sepEndBy` (string ",")
+        pure $ \expr -> App expr (fromFoldable args)
 
 
 binary name assoc =
