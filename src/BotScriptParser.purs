@@ -141,9 +141,13 @@ parseArguments = fix $ \self ->
       parsePmatch `sepEndBy` (reserved ","))
   <|> (flip A.(:) [] <$> parsePmatch)
 
+parseAbsHead parseArgs = do
+    args <- parseArgs
+    reserved "=>"
+    pure args
+
 parseAbs exprP = do
-    args <- parseArguments
-    reservedOp "=>"
+    args <- try $ parseAbsHead parseArguments
     body <- exprP
     pure $ Abs args body
 
@@ -247,12 +251,12 @@ parseExpr = fix $ \self -> whiteSpace *> (
     let exprP = buildExprParser
                     (op'tab self)
                     (parseTerm self) in do
-    (try $ parseAbs self)
+    (parseAbs self)
     <|> (do
-        expr <- try exprP
+        expr <- exprP
         parseBinding self expr <|> pure expr
         )
-    <|> (try $ parseObject self)
+    <|> (parseObject self)
     <|> parseStmtExpr self
     <?> "Expression"
 )
@@ -408,7 +412,8 @@ parseScript' = do
         else fail "Expected State or Expression"
 
 parseScript = do
-    xs <- some parseScript'
+    whiteSpace
+    xs <- many parseScript'
     eof
     pure let s /\ a = unzip xs in
         BotScript (L.fromFoldable $ concat a) (concat s)
