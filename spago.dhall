@@ -9,7 +9,6 @@ You can edit this file as you like.
   , "console"
   , "effect"
   , "foreign"
-  , "foreign-generic"
   , "foreign-object"
   , "generics-rep"
   , "lists"
@@ -21,4 +20,5 @@ You can edit this file as you like.
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
+, backend = "pspy"
 }

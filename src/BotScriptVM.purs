@@ -22,8 +22,6 @@ import Data.Time.Duration (Milliseconds(..))
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Console (log, logShow)
-import Foreign.NullOrUndefined (null)
-import Foreign.Object as FO
 import Undefined (undefined)
 
 -- write state checker

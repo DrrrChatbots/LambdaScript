@@ -10,3 +10,7 @@ botscript.js
 /.purs*
 /.psa*
 /.spago
+
+# purescript-python
+.pure-py/
+BotScript
