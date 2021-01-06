@@ -1,6 +1,5 @@
 module BotScriptVM where
 
-
 import BotScript
 import Control.Lazy
 import Data.Array
@@ -253,7 +252,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                   let top'env = Env.topEnv env in do
                       liftEffect $ setcur stat
                       liftEffect $ clearTimer machine.cur
-                      pure (Loop machine { cur = stat
+                      pure (Loop $ machine { cur = stat
                                          , env = top'env
                                          , exprs = ((acts' : (Reset machine.cur) : exprs) : exprss)
                                          })
@@ -284,26 +283,26 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 -- liftEffect $ logShow event
                 liftEffect $ listen machine.cur etypes guards
                     (make'event'action syms expr' machine)
-                pure $ Loop machine' { val = none undefined }
+                pure <<< Loop $ machine' { val = none undefined }
 
         (Renew lval val) -> do
            val' <- evalExprLiftedStmt machine val
            case lval of
                 (Var name) ->
                    (let _ = Env.insert env name val' in do
-                       pure $ Loop machine' {val = val'})
+                       pure <<< Loop $ machine' {val = val'})
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
                    liftEffect $ updMem obj' mem val'
-                   pure $ Loop machine' {val = val'}
+                   pure <<< Loop $ machine' {val = val'}
                 (Sub obj sub) -> do
                    obj' <- evalExpr machine obj
                    sub' <- evalExpr machine sub
                    liftEffect $ updMem obj' sub val'
-                   pure $ Loop machine' {val = val'}
+                   pure <<< Loop $ machine' {val = val'}
                 _ -> do
                    liftEffect $ logShow "invalid renew"
-                   pure $ Loop machine' {val = val'}
+                   pure <<< Loop $ machine' {val = val'}
 
         (Ifels prd thn els) -> do
             prd' <- evalExpr machine prd
@@ -319,11 +318,11 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
            expr' <- evalExpr machine $ liftAbs expr
            prd' <- evalExpr machine prd
            liftEffect $ setTimer machine.cur prd' expr'
-           pure $ Loop machine' { val = none undefined }
+           pure <<< Loop $ machine' { val = none undefined }
 
         (Later prd expr) -> do
            val <- evalExpr machine $ (App (Var "setTimeout") [liftAbs expr, prd])
-           pure $ Loop machine' { val = val }
+           pure <<< Loop $ machine' { val = val }
 
         action -> do
             case action of
@@ -331,16 +330,20 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                _ -> liftEffect $
                    log $ "unhandled expression: " <> show expr'cur
 
-            pure $ Loop machine' { val = none undefined }
+            pure <<< Loop $ machine' { val = none undefined }
 
 
-runVM (BotScript exprs states) =
-    let env = Env.pushEnv Env.Top in do
+runVM (BotScript exprs states) = do
     clearAllTimer
     clearAllEvent
     tailRecM run { val: none undefined
                  , cur: ""
-                 , env: env
+                 , env: Env.pushEnv Env.Top
                  , exprs: (exprs : Nil)
                  , states: states
                  }
+
+runStep machine (BotScript exprs states) = do
+    tailRecM run (machine { val = none undefined
+                          , exprs = (exprs : Nil)
+                          })
