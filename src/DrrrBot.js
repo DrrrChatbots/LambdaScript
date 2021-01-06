@@ -1,3 +1,17 @@
+stringify = obj => {
+  str = JSON.stringify(obj)
+  if(obj === undefined)
+    str = "undefined";
+  else if(typeof obj == 'function')
+    str = 'function' + (obj.name ? ' ' + obj.name : '');
+  else if(str === undefined && obj.toString)
+    str = obj.toString();
+  else if(str === '{}' && obj.constructor
+    && obj.constructor.name != 'Object')
+    str = "[Object " + obj.constructor.name + "]"
+  return str;
+}
+
 botlang_builtins = {
   'title': function(msg){
     console.log(`title ${JSON.stringify(msg)}`);
@@ -7,7 +21,7 @@ botlang_builtins = {
   },
   'print': function(...args){
     console.log.apply(null,
-      args.map((e)=>e.valueOf ? e.valueOf() : e));
+      args.map((e)=> stringify(e.valueOf ? e.valueOf() : e)));
     //console.log(`print ${JSON.stringify(msg)}`);
   },
   'order': function(keyword, p1, p2){
