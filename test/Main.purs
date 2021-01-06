@@ -14,7 +14,6 @@ import Effect.Console (log, logShow)
 import Undefined (undefined)
 
 ctx = """
-print("hello"
 """
 execute ctx = case parse parseScript ctx of
     Right script -> do

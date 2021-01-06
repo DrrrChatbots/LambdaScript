@@ -78,7 +78,7 @@ parseNumber = whiteSpace *>
 
 parseArray exprP = fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
-      exprP `sepEndBy` (string ","))
+      exprP `endBy` (string ","))
 
 -- event'types =
 --     [ "join"
@@ -124,7 +124,7 @@ parseEtype = (choice $ map (\n ->
 
 parseEtypes = (do
   (brackets $ fromFoldable <$>
-      parseEtype `sepEndBy` (string ",")))
+      parseEtype `endBy` (string ",")))
   <|> (do
       et <- parseEtype
       pure $ [et])
@@ -138,7 +138,7 @@ parsePmatch = do
 
 parseArguments = fix $ \self ->
   (parens $ fromFoldable <$>
-      parsePmatch `sepEndBy` (reserved ","))
+      parsePmatch `endBy` (string ","))
   <|> (flip A.(:) [] <$> parsePmatch)
 
 parseAbsHead parseArgs = do
@@ -203,12 +203,8 @@ sub exprP = (brackets $ exprP >>= \sub'expr ->
        pure $ \expr -> Sub expr sub'expr)
 
 parseApp exprP = do
-    maybe <- optionMaybe (reserved "=>")
-    case maybe of
-       Just _ -> fail "reserved for lambda"
-       Nothing -> do
-        args <- parens $ exprP `sepEndBy` (string ",")
-        pure $ \expr -> App expr (fromFoldable args)
+  args <- parens $ exprP `endBy` (string ",")
+  pure $ \expr -> App expr (fromFoldable args)
 
 
 binary name assoc =
@@ -270,7 +266,7 @@ parseObject exprP = let
        value <- exprP
        pure $ key /\ value
     parseItems = do
-       items <- parseItem `sepEndBy` (string ",")
+       items <- parseItem `endBy` (string ",")
        pure $ fromFoldable items in do
           pairs <- braces $ parseItems
           pure $ Obj pairs
