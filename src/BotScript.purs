@@ -2,7 +2,6 @@ module BotScript where
 
 import Data.Array
 import Data.Tuple.Nested
-import Foreign
 import Prelude
 
 import Data.Generic.Rep (class Generic)
@@ -13,7 +12,7 @@ import Effect (Effect)
 import Effect.Exception (name)
 import Undefined (undefined)
 
-type Term = (Record (toString :: Foreign -> String))
+type Term = (Record (toString :: (forall a. a) -> String))
 foreign import toTerm :: forall a. String -> a -> Term
 foreign import stringify_ :: forall a. a -> String
 

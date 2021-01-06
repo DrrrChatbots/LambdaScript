@@ -1,21 +1,20 @@
 module BotScriptEnv where
 
 import BotScript
-
-import Undefined (undefined)
 import Data.Boolean
 import Data.Maybe
 import Prelude
 
+import Data.Map as M
 import Effect (Effect)
 import Effect.Console (log, logShow)
-import Foreign.Object as FO
-
-type Tab = FO.Object Term
+import Undefined (undefined)
+type Tab = M.Map String Term
 
 foreign import global :: Tab
 
-showTab tab = "{\n" <> FO.fold (\acc key val -> acc <> ", " <> key <> ": " <> val.toString undefined <> "\n") "" tab <> "}"
+-- showTab tab = "{\n" <> M.fold (\acc key val -> acc <> ", " <> key <> ": " <> val.toString undefined <> "\n") "" tab <> "}"
+showTab tab = "" -- showTree tab
 
 data Env = Env {lv:: Int, tab :: Tab, root :: Env} | Top
 
@@ -26,9 +25,9 @@ instance showEnv :: Show Env where
     <> show e.lv <> " "
     <> showTab e.tab
 
-pushEnv Top = Env {lv: 0, tab: FO.fromFoldable [], root: Top}
+pushEnv Top = Env {lv: 0, tab: M.fromFoldable [], root: Top}
 pushEnv env@(Env e)
-    = Env {lv: e.lv + 1, tab: FO.fromFoldable [], root: env}
+    = Env {lv: e.lv + 1, tab: M.fromFoldable [], root: env}
 
 topEnv Top = Top
 topEnv env@(Env e) =
@@ -41,17 +40,17 @@ popEnv env@(Env e) = e.root
 
 assocEnv key Top = Nothing
 assocEnv key (Env e) =
-    case FO.lookup key e.tab of
+    case M.lookup key e.tab of
       Just _ -> Just e.tab
       Nothing -> assocEnv key e.root
 
 assocVar name Top =
-    case FO.lookup name global of
+    case M.lookup name global of
       Just val -> Just val
       Nothing -> Nothing
 
 assocVar name (Env e) =
-    case FO.lookup name e.tab of
+    case M.lookup name e.tab of
       Just val -> Just val
       Nothing -> assocVar name e.root
 
