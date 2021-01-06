@@ -131,7 +131,7 @@ parseEtypes = (do
 
 parsePmatch = do
     var <- parseIdentifier
-    maybe <- optionMaybe (reserved ":" *> parseExpr)
+    maybe <- optionMaybe (reservedOp ":" *> parseExpr)
     case maybe of
          Just pattern -> pure $ var /\ pattern
          Nothing -> pure $ var /\ (Trm $ toTerm "String" "")
@@ -143,7 +143,7 @@ parseArguments = fix $ \self ->
 
 parseAbsHead parseArgs = do
     args <- parseArgs
-    reserved "=>"
+    reservedOp "=>"
     pure args
 
 parseAbs exprP = do
@@ -168,7 +168,7 @@ parseBinding exprP expr = do
         <|> reservedOp' "%="
     lval <- mustLval expr
     rval <- exprP <?> "Binding Expression"
-    P.optional (reserved ";")
+    P.optional (reservedOp ";")
     case op of
          "+=" -> pure $ Renew lval (Bin "+" lval expr)
          "-=" -> pure $ Renew lval (Bin "-" lval expr)
@@ -262,7 +262,7 @@ parseObject :: ParserT String Identity Expr -> ParserT String Identity Expr
 parseObject exprP = let
     parseItem = do
        key <- parseIdentifier
-       reserved ":"
+       reservedOp ":"
        value <- exprP
        pure $ key /\ value
     parseItems = do
@@ -299,7 +299,7 @@ parseStmtExpr exprP = (do
           desc = do
              init <- exprP <?> "For Init Expr"
              cond <- exprP <?> "For Cond Expr"
-             P.optional (reserved ";")
+             P.optional (reservedOp ";")
              step <- exprP <?> "For Step Expr"
              pure $ init /\ cond /\ step in do
                 reserved "for"
@@ -379,9 +379,9 @@ parseStmtExpr exprP = (do
           act <- exprP <?> "Timer Expr"
           pure $ Timer prd act)
   ) -- may consume, need restore
-  P.optional (reserved ";")
+  P.optional (reservedOp ";")
   pure stmtExpr)
-  <|> ((Group L.Nil) <$ reserved ";")
+  <|> ((Group L.Nil) <$ reservedOp ";")
 
 parseState = do
   reserved "state"

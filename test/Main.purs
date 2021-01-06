@@ -87,6 +87,14 @@ print("done");
 """
 
 ctx = """
+users.map((x)=>x.name)
+guests = users.map((x)=>x.name);
+event join (user) => {
+	if guests.includes(user)
+  	drrr.print("welcome back, " + user)
+  else guests.push(user)
+}
+print(guests)
 """
 
 execute ctx = case parse parseScript ctx of
@@ -112,10 +120,10 @@ execute' ctx = do
 
 doing = execute'
 main = do
-  doing testLoop
-  doing testAjax
-  doing testRecursion
-  doing testLift
-  doing testGoing
-  doing testVisit
+  -- doing testLoop
+  -- doing testAjax
+  -- doing testRecursion
+  -- doing testLift
+  -- doing testGoing
+  -- doing testVisit
   doing ctx
