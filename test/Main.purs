@@ -86,7 +86,7 @@ print("done");
 // done.
 """
 
-ctx = """
+guessNumber = """
 valid = (digits) =>
     (new Set(digits.split(""))).size === 4
 
@@ -114,6 +114,15 @@ gnjdg = (guess, callback) => {
 event msg (user, cont: "^\\d\\d\\d\\d$") => gnjdg(cont, drrr.print)
 event msg (user, cont: "^new$") => theNumber = generate()
 print(theNumber = generate())
+"""
+
+ctx = """
+event join (user) => {
+  if users.length == 10
+  	drrr.print("/me 恭喜成為 0.0001 人！");
+  else
+		drrr.print("/me 歡迎第" + String(users.length) + "個貴賓！");
+}
 """
 
 execute ctx = case parse parseScript ctx of
@@ -146,4 +155,5 @@ main = do
   doing testLift
   doing testGoing
   doing testVisit
+  doing guessNumber
   doing ctx

@@ -204,6 +204,7 @@ sub exprP = (brackets $ exprP >>= \sub'expr ->
 
 parseApp exprP = do
   args <- parens $ exprP `sepEndBy` (string ",")
+  P.optional (reservedOp ";")
   pure $ \expr -> App expr (fromFoldable args)
 
 
