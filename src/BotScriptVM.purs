@@ -45,6 +45,7 @@ foreign import evalApp :: forall a. String -> Term -> a -> (Array Term) -> Term
 foreign import memberOf :: Term -> Term -> Term
 foreign import updMem :: forall a. Term -> a -> Term -> Effect Unit
 foreign import toVaArgFunction :: forall a. a -> Term
+foreign import new :: Term -> (Array Term) -> Term
 
 lvalUpdate ms@{env: env} lval val =
     case lval of
@@ -131,6 +132,17 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
     let machine' = machine { exprs = (exprs : exprss) } in case expr'cur of
 
         (Trm term) -> pure <<< Loop $ machine' { val = term }
+
+
+        (Una "new" val) ->
+            case val of
+                 (App cons args) -> do
+                    cons' <- evalExpr machine cons
+                    args' <- traverse (evalExprLiftedStmt machine) args
+                    pure <<< Loop $ machine' { val = new cons' args' }
+                 _ -> do
+                    liftEffect <<< log $ "\"new\" need a constructor"
+                    pure <<< Loop $ machine' { val = none undefined }
 
         (Una op val) -> do
            val' <- evalExpr machine val

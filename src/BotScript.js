@@ -23,8 +23,11 @@ exports.stringify_ = obj => {
   if(obj === undefined)
     str = "undefined";
   else if(typeof obj == 'function')
-    str = 'function';
+    str = 'function' + (obj.name ? ' ' + obj.name : '');
   else if(str === undefined && obj.toString)
     str = obj.toString();
+  else if(str === '{}' && obj.constructor
+    && obj.constructor.name != 'Object')
+    str = "[Object " + obj.constructor.name + "]"
   return str;
 }

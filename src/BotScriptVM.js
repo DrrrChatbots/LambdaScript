@@ -135,3 +135,7 @@ exports.toVaArgFunction = (fn) => {
 }
 
 exports.stringify = JSON.stringify
+
+exports["new"] = cons => args => {
+  return new (cons.bind.apply(cons, [null].concat(args)))()
+}

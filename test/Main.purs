@@ -14,8 +14,7 @@ import Effect.Console (log, logShow)
 import Undefined (undefined)
 
 ctx = """
-a = [1,2,3]
-a.includes(3)
+a = new Set([1,2,3])
 """
 execute ctx = case parse parseScript ctx of
     Right script -> do
