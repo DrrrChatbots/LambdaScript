@@ -78,7 +78,7 @@ parseNumber = whiteSpace *>
 
 parseArray exprP = fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
-      exprP `endBy` (string ","))
+      exprP `sepEndBy` (string ","))
 
 -- event'types =
 --     [ "join"
@@ -124,7 +124,7 @@ parseEtype = (choice $ map (\n ->
 
 parseEtypes = (do
   (brackets $ fromFoldable <$>
-      parseEtype `endBy` (string ",")))
+      parseEtype `sepEndBy` (string ",")))
   <|> (do
       et <- parseEtype
       pure $ [et])
@@ -138,7 +138,7 @@ parsePmatch = do
 
 parseArguments = fix $ \self ->
   (parens $ fromFoldable <$>
-      parsePmatch `endBy` (string ","))
+      parsePmatch `sepEndBy` (string ","))
   <|> (flip A.(:) [] <$> parsePmatch)
 
 parseAbsHead parseArgs = do
@@ -203,7 +203,7 @@ sub exprP = (brackets $ exprP >>= \sub'expr ->
        pure $ \expr -> Sub expr sub'expr)
 
 parseApp exprP = do
-  args <- parens $ exprP `endBy` (string ",")
+  args <- parens $ exprP `sepEndBy` (string ",")
   pure $ \expr -> App expr (fromFoldable args)
 
 
@@ -253,8 +253,8 @@ parseExpr = fix $ \self -> whiteSpace *> (
         expr <- exprP
         parseBinding self expr <|> pure expr
         )
-    <|> (parseObject self)
     <|> parseStmtExpr self
+    <|> parseObject self
     <?> "Expression"
 )
 
@@ -266,7 +266,7 @@ parseObject exprP = let
        value <- exprP
        pure $ key /\ value
     parseItems = do
-       items <- parseItem `endBy` (string ",")
+       items <- parseItem `sepEndBy` (string ",")
        pure $ fromFoldable items in do
           pairs <- braces $ parseItems
           pure $ Obj pairs

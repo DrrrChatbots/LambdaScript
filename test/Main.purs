@@ -13,8 +13,82 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 import Undefined (undefined)
 
+testLoop = """
+for i = 0
+    i < 10
+    i++
+    print(i)
+
+j = 0
+while(j < 3){
+    print(j);
+    j++;
+}
+for(i of [1,2,3,4]) print(i);
+for(j in {tom: 1, allen: 2}) print(j);
+"""
+
+testAjax = """
+fetch("https://v1.hitokoto.cn")
+  .then(response => response.json())
+	.then(result => {
+	print(result.hitokoto);
+});
+"""
+
+
+
+testRecursion = """
+f = (x) =>
+  if(x <= 0) 0
+  else if(x == 1) 1
+  else f(x - 1) + f(x - 2)
+
+[0, 1, 2, 3, 4, 5, 6].map(f)
+"""
+
+testLift = """
+f = (a, b) => a + b;
+print(f(1, 4)) // 5
+
+g = { args[0] + args[1] };
+print(g(1, 2)) // 3
+"""
+
+testGoing = """
+state welcome {
+    print("hello world");
+    going bye
+}
+
+state bye {
+    print("bye");
+    // done.
+}
+
+going welcome
+"""
+
+testVisit = """
+state welcome {
+    print("hello world");
+    going bye
+}
+
+state bye {
+    print("bye");
+    // because "visit welcome", so back to visit
+}
+
+visit welcome
+// back from bye
+print("done");
+// done.
+"""
+
 ctx = """
 """
+
 execute ctx = case parse parseScript ctx of
     Right script -> do
        runVM script
@@ -36,5 +110,12 @@ execute' ctx = do
     machine <- execute ctx
     log $ "=> " <> stringify_ machine.val
 
-m = 1
-main = (if m == 0 then compile else execute') ctx
+doing = execute'
+main = do
+  doing testLoop
+  doing testAjax
+  doing testRecursion
+  doing testLift
+  doing testGoing
+  doing testVisit
+  doing ctx
