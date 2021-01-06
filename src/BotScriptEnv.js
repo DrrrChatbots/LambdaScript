@@ -1,3 +1,5 @@
+exports.global = globalThis;
+
 exports.updateTab = tab => sym => val => {
   tab[sym] = val;
   return true;

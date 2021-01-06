@@ -2,31 +2,49 @@ module BotScript where
 
 import Data.Array
 import Data.Tuple.Nested
+import Foreign
 import Prelude
 
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.List (List)
 import Data.List as L
+import Effect (Effect)
 import Effect.Exception (name)
+import Undefined (undefined)
 
-data Var = Var String (Array Expr)
+type Term = (Record (toString :: Foreign -> String))
+foreign import toTerm :: forall a. String -> a -> Term
+foreign import stringify_ :: forall a. a -> String
 
-instance showVar :: Show Var where
-  show (Var s ns) = "(Var " <> show s <> " " <> show ns <> ")"
+type Args = Array (String /\ Expr)
 
 data Expr
-  = Arr (Array Expr)
-  | Bin String Expr Expr
+  = Trm Term
   | Una String Expr
-  | Str String
-  | Num Number
-  | Tfv Boolean
-  | Ref Var
-  | Obj (Record (toString :: String))
-  | Null
+  | Bin String Expr Expr
+  | Var String
+  | Obj (Array (String /\ Expr))
+  | Abs Args Expr
+  | App Expr (Array Expr)
+  | Sub Expr Expr
+  | Arr (Array Expr)
+  | Dot Expr String
+  | Later Expr Expr
+  | Going String
+  | Visit String
+  | Reset String
+  | Renew Expr Expr -- note lval
+  | Timer Expr Expr
+  | Group (List Expr)
+  | While Expr Expr
+  | Ifels Expr Expr Expr
+  | Event (Array String) Expr
+  -- | Cases [...]
+  -- | Sleep Period
 
 instance showExpr :: Show Expr where
+  show (Arr  xs) = show xs
   show (Bin o l r)
     = "(Bin "
     <> show o <> " "
@@ -36,66 +54,29 @@ instance showExpr :: Show Expr where
     = "(Una "
     <> show o <> " "
     <> show e <> ")"
-  show (Tfv   b) = show b
-  show (Num   n) = show n
-  show (Str   s) = show s
-  show (Ref   s) = "(Ref " <> show s <> ")"
-  show (Arr  xs) = show xs
-  show (Obj obj) = obj.toString
-  show Null = "Null"
-
-type ConsT =
-    { array :: Array Expr -> Expr
-    , number :: Number -> Expr
-    , boolean :: Boolean -> Expr
-    , object :: { toString :: String
-                }
-                -> Expr
-    , string :: String -> Expr
-    , undefined :: Expr
-    }
-
-type ToExprT = forall a. ConsT -> a -> Expr
-foreign import toExprFFI :: ToExprT
-
-consTab =  { array: Arr
-        , string: Str
-        , number: Num
-        , boolean: Tfv
-        , object: Obj
-        , undefined: Null
-        }
-
-
-toExpr :: forall a. a -> Expr
-toExpr = toExprFFI consTab
-
-type Period = String
-type Rule = String /\ String
-
-
--- Invok : Title Descr Delay Print Order Going
-data Action
-  = Invok (Array String) (Array Expr)
-  -- | Cases [...]
-  -- | Sleep Period
-  | Delay Expr
-  | Going String
-  | Renew Var Expr
-  | Timer Period Action
-  | Group (List Action)
-  | While Expr Action
-  | Visit Var Expr Action
-  | Match Expr Action Action
-  | Event String (Array Rule) Action
-
-instance showAction :: Show Action where
-  show (Invok names args)
-    = "(Invok "
-    <> show names <> " "
+  show (App expr args)
+    = "(App "
+    <> show expr <> " "
     <> show args <> ")"
-  show (Delay time) = "(Delay " <> show time <> ")"
+  show (Abs args expr)
+    = "(Abs "
+    <> show args <> " "
+    <> show expr <> ")"
+  show (Dot expr attr)
+    = show expr <> "." <> show attr
+  show (Sub expr sub)
+    = show expr <> "[" <> show sub <> "]"
+  show (Var   s) = "(Var " <> show s <> ")"
+  show (Obj   pairs) = "(Obj " <> show pairs <> ")"
+  show (Trm   term) = stringify_ term
+
+  show (Later time expr)
+    = "(Later "
+    <> show time <> " "
+    <> show expr <> ")"
   show (Going stat) = "(Going " <> show stat <> ")"
+  show (Visit stat) = "(Visit " <> show stat <> ")"
+  show (Reset stat) = "(Reset " <> show stat <> ")"
   show (Renew lval rvalue)
     = "(Renew " <> show lval <> " " <> show rvalue <> ")"
   show (Timer time action)
@@ -106,28 +87,24 @@ instance showAction :: Show Action where
     = "(While "
     <> show expr <> " "
     <> show action <> ")"
-  show (Visit var expr action)
-    = "(Visit "
-    <> show var <> " "
-    <> show expr <> " "
-    <> show action <> ")"
-  show (Match prd thn els)
-    = "(Match "
+  show (Ifels prd thn els)
+    = "(Ifels "
        <> show prd <> " "
        <> show thn <> " "
        <> show els <> ")"
-  show (Event name rules action)
+  show (Event name expr)
     = "(Event "
        <> show name <> " "
-       <> show rules <> " "
-       <> show action <> ")"
+       <> show expr <> ")"
 
-data BotState = BotState String Action
+  show _ = "undefined"
+
+data BotState = BotState String Expr
 instance showBotState :: Show BotState where
   show (BotState name action) =
     "(BotState " <> name <> " " <> show action <> ")"
 
-data BotScript = BotScript (List Action) (Array BotState)
+data BotScript = BotScript (List Expr) (Array BotState)
 instance showBotScript :: Show BotScript where
   show (BotScript actions states) =
     "(BotScript " <> show actions <> " " <> show states <> ")"

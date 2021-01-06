@@ -1,66 +1,159 @@
 module Test.Main where
 
-import Prelude (class Eq, class Show, Unit, discard, pure, show, ($), (*>), (<>), (==), (>>=), (>>>))
-
-import Data.Either (Either(..))
-import Effect (Effect)
-import Effect.Console (logShow)
-import Test.Assert (assert')
-import Text.Parsing.Parser (Parser, runParser, parseErrorPosition)
-import Text.Parsing.Parser.Language (javaStyle)
-import Text.Parsing.Parser.Pos (Position(..))
-import Text.Parsing.Parser.Token (makeTokenParser)
-
+import BotScript
+import BotScriptEnv
 import BotScriptParser
+import BotScriptVM
+import Data.Either
+import Prelude
 
-mkPos :: Int -> Position
-mkPos n = mkPos' n 1
+import Data.Array.ST.Iterator (next)
+import Data.List (List(..))
+import Effect (Effect)
+import Effect.Console (log, logShow)
+import Undefined (undefined)
 
-mkPos' :: Int -> Int -> Position
-mkPos' column line = Position { column: column, line: line }
+testLoop = """
+for i = 0
+    i < 10
+    i++
+    print(i)
+
+j = 0
+while(j < 3){
+    print(j);
+    j++;
+}
+for(i of [1,2,3,4]) print(i);
+for(j in {tom: 1, allen: 2}) print(j);
+"""
+
+testAjax = """
+fetch("https://v1.hitokoto.cn")
+  .then(response => response.json())
+	.then(result => {
+	print(result.hitokoto);
+});
+"""
 
 
-type TestM = Effect Unit
 
-parseErrorTestPosition :: forall s a. Show a => Parser s a -> s -> Position -> Effect Unit
-parseErrorTestPosition p input expected = case runParser input p of
-  Right _ -> assert' "error: ParseError expected!" false
-  Left err -> do
-    let pos = parseErrorPosition err
-    assert' ("expected: " <> show expected <> ", pos: " <> show pos) (expected == pos)
-    logShow expected
+testRecursion = """
+f = (x) =>
+  if(x <= 0) 0
+  else if(x == 1) 1
+  else f(x - 1) + f(x - 2)
 
+[0, 1, 2, 3, 4, 5, 6].map(f)
+"""
 
+testLift = """
+f = (a, b) => a + b;
+print(f(1, 4)) // 5
 
-parseTest :: forall s a. Show a => Eq a => s -> a -> Parser s a -> Effect Unit
-parseTest input expected p = case runParser input p of
-  Right actual -> do
-    assert' ("expected: " <> show expected <> ", actual: " <> show actual) (expected == actual)
-    logShow actual
-  Left err -> assert' ("error: " <> show err) false
+g = { args[0] + args[1] };
+print(g(1, 2)) // 3
+"""
 
-javaStyleTest :: TestM
-javaStyleTest = do
-    let javaTokParser = makeTokenParser javaStyle
-    -- make sure java-style comments work
-    parseTest "hello /* comment\n */ fo_" "fo_" $ javaTokParser.identifier *> javaTokParser.identifier
+testGoing = """
+state welcome {
+    print("hello world");
+    going bye
+}
 
-    -- make sure java-style identifier work
-    parseTest "$hello /* comment\n */ _f$o_" "_f$o_" $ javaTokParser.identifier *> javaTokParser.identifier
+state bye {
+    print("bye");
+    // done.
+}
 
-    -- make sure haskell-style comments do not work
-    parseErrorTestPosition
-        (javaTokParser.identifier *> javaTokParser.identifier)
-        "hello {- comment\n -} foo"
-        (mkPos 7)
+going welcome
+"""
 
-botScriptTest :: TestM
-botScriptTest = do
-    parseTest "title \"hello\"" "(Title \"hello\")" $
-        parseAction >>= show >>> pure
+testVisit = """
+state welcome {
+    print("hello world");
+    going bye
+}
 
-main :: Effect Unit
+state bye {
+    print("bye");
+    // because "visit welcome", so back to visit
+}
+
+visit welcome
+// back from bye
+print("done");
+// done.
+"""
+
+guessNumber = """
+valid = (digits) =>
+    (new Set(digits.split(""))).size === 4
+
+generate = () => {
+    while(!valid(digits = String(Math.floor(1000 + Math.random() * 9000))));
+    digits
+}
+
+gnjdg = (guess, callback) => {
+  if(valid(guess)){
+    d = theNumber.split("")
+    g = guess.split("")
+    c = g.map((v)=>d.includes(v)).reduce((a, b)=>a+b)
+    a = g.map((v, idx)=>d[idx] === g[idx]).reduce((a, b)=>a+b)
+    b  = c - a
+    callback(
+      if(a === 4)
+        "Your Number is Correct"
+      else
+        guess + ":" + String(a) + "A" + String(b) + "B"
+    )
+  } else callback("guess number must be 4 non-repeat digits" + guess);
+}
+
+event msg (user, cont: "^\\d\\d\\d\\d$") => gnjdg(cont, drrr.print)
+event msg (user, cont: "^new$") => theNumber = generate()
+print(theNumber = generate())
+"""
+
+ctx = """
+event join (user) => {
+  if users.length == 10
+  	drrr.print("/me 恭喜成為 0.0001 人！");
+  else
+		drrr.print("/me 歡迎第" + String(users.length) + "個貴賓！");
+}
+"""
+
+execute ctx = case parse parseScript ctx of
+    Right script -> do
+       runVM script
+       -- log $ machine.val.toString undefined
+    Left err -> do
+       log ("error: " <> show err)
+       pure $ { val: none undefined
+              , cur: ""
+              , env: Top
+              , exprs: Nil
+              , states: []
+              }
+
+compile ctx = case parse parseScript ctx of
+    Right script -> logShow script
+    Left err -> log ("error: " <> show err)
+
+execute' ctx = do
+    machine <- execute ctx
+    log $ "=> " <> stringify_ machine.val
+
+-- doing = execute'
+doing = execute'
 main = do
-  javaStyleTest
-  botScriptTest
-
+  doing testLoop
+  doing testAjax
+  doing testRecursion
+  doing testLift
+  doing testGoing
+  doing testVisit
+  doing guessNumber
+  doing ctx

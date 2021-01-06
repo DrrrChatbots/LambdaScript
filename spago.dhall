@@ -8,6 +8,8 @@ You can edit this file as you like.
   , "assert"
   , "console"
   , "effect"
+  , "foreign"
+  , "foreign-generic"
   , "foreign-object"
   , "generics-rep"
   , "lists"
@@ -15,6 +17,7 @@ You can edit this file as you like.
   , "psci-support"
   , "tailrec"
   , "tuples"
+  , "undefined"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

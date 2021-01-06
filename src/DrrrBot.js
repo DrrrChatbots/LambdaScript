@@ -1,67 +1,50 @@
-
-builtins = {
-  'title': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
-  },
-  'descr': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
-  },
-  'print': function(msg){
-    sendTab({ fn: publish_message, args: { msg: msg} });
-  },
-  'order': function(keyword, p1, p2){
-    var idx = undefined, source = undefined;
-    if(p1){ if(p1 in api) source = p1; else idx = p1; }
-    if(p2){ if(p2 in api) source = p2; else idx = p2; }
-    console.log(`play music[${source}][${idx}]: ${keyword}`);
-    setTimeout(()=> play_search(
-      get_music.bind(null, keyword, source),
-      (msg) => sendTab({
-        fn: publish_message,
-        args: { msg: msg }
-      }), idx
-    ), 1000);
-  }
+stringify = obj => {
+  str = JSON.stringify(obj)
+  if(obj === undefined)
+    str = "undefined";
+  else if(typeof obj == 'function')
+    str = 'function' + (obj.name ? ' ' + obj.name : '');
+  else if(str === undefined && obj.toString)
+    str = obj.toString();
+  else if(str === '{}' && obj.constructor
+    && obj.constructor.name != 'Object')
+    str = "[Object " + obj.constructor.name + "]"
+  return str;
 }
 
-builtins_test = {
+botlang_builtins = {
   'title': function(msg){
     console.log(`title ${JSON.stringify(msg)}`);
   },
   'descr': function(msg){
     console.log(`descr ${JSON.stringify(msg)}`);
   },
-  'print': function(msg){
-  //builtins_test[sym].apply(null, args.map((x)=>x['value0']))
-    console.log(`print ${JSON.stringify(msg)}`);
+  'print': function(...args){
+    console.log.apply(null,
+      args.map((e)=> stringify(e.valueOf ? e.valueOf() : e)));
+    //console.log(`print ${JSON.stringify(msg)}`);
   },
   'order': function(keyword, p1, p2){
-    console.log(`order ${JSON.stringify(msg)}`);
+    console.log(`order ${JSON.stringify(keyword)}`);
+  },
+  'new': function (func) {
+    var res = {};
+    if (func.prototype !== null) {
+      res.__proto__ = func.prototype;
+    }
+    var ret = func.apply(res,
+      Array.prototype.slice.call(arguments, 1));
+    if ((typeof ret === "object"
+      || typeof ret === "function")
+      && ret !== null) {
+      return ret;
+    }
+    return res;
   }
 }
 
-var functions = builtins_test
-
-exports.invok = syms => args => () => {
-  //builtins_test[sym].apply(null, args.map((x)=>x['value0']))
-  if(syms.length == 1 && functions[syms[0]])
-    functions[syms].apply(null, args.map((x)=>x['value0']))
-  else
-    invokExternal(globalThis)(syms).apply(
-      null, args.map((x)=>x['value0']))
-  console.log(`Invok ${syms} ${JSON.stringify(args)}`);
-}
-
-invokExternal = namespace => syms => {
-  var f = namespace;
-  console.log(syms)
-  for(var key of syms){
-    console.log(f);
-    if(!f)
-    return () => console.log(`cannot find function ${syms}`)
-    f = f[key];
-  }
-  return f;
+for(key in botlang_builtins){
+  globalThis[key] = botlang_builtins[key];
 }
 
 exports.cur = ""
@@ -73,39 +56,24 @@ function padArray(array, length, fill){
     array;
 }
 
-exports.listen = state => type => args => next => () => {
-  //builtins[sym].apply(null, args.map((x)=>x['value0']))
+exports.clearAllEvent = () => {
+  exports.cur = "";
+  exports.events = {};
+}
+
+exports.setcur = state => () => {
+  exports.events[exports.cur] = [];
+  exports.cur = state;
+}
+
+exports.listen = state => types => args => next => () => {
   exports.events[state] = exports.events[state] || [];
 
   [user_regex, cont_regex] = padArray(args);
 
   exports.events[state].push([
-    type, user_regex, cont_regex, next
+    types, user_regex, cont_regex, next
   ])
 
-  console.log(`Event ${type} ${JSON.stringify(args)}`);
+  //console.log(`Event ${types} ${JSON.stringify(args)}`);
 }
-
-exports.handle = function(){
-
-}
-
-function event_action(event, config, req){
-  var rule = exports.events[""] || []
-
-  if(exports.cur.length)
-    rule = rule.concat(exports.events[exports.cur] || [])
-
-  rules.map(([type, user_trip_regex, cont_regex, action])=> {
-    if(((Array.isArray(type) && type.includes(event)) || type == event)
-      && match_user(req.user, req.trip, user_trip_regex)
-      && ((req.text === 'unknown' || req.text === undefined)
-          || req.text.match(new RegExp(cont_regex)))){
-        action([req.user, req.text]);
-        //argfmt(arglist, req.user, req.text, req.url, (args)=>{
-        //  return actions[action].apply(config, args);
-        //});
-    }
-  });
-}
-

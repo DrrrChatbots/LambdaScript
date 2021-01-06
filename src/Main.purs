@@ -7,46 +7,46 @@ import BotScriptVM
 import Data.Either
 import Prelude
 
-import Data.Foldable (for_)
+import Data.Array.ST.Iterator (next)
+import Data.List (List(..), (:))
 import Effect (Effect)
 import Effect.Console (log, logShow)
+import Undefined (undefined)
 
-ctx = """
-title "hello"
-x = "hello"
-y = true
-state world {
-    title "hello"
-    title true
-}
-x[2] = 3
-state fuck {
-    title true
-    title "hello" + " world"
-    descr "hello world!"
-    delay "20m"
-    print "hello again"
-    delay "20m"
-    order "a song name"
-    delay "20m"
-    x[2] = "asdf"
-    x = 3
-    x = -3.5
-    x = [1,2,3,4]
-    event left (user : "", msg : "^/play") {}
-    going world
-}
-going world
-"""
+newMachine :: forall a. a -> MachineState
+newMachine x = { val: none undefined
+               , cur: ""
+               , env: pushEnv Top
+               , exprs: (Nil : Nil)
+               , states: []
+               }
 
 execute ctx = case parse parseScript ctx of
-    Right script -> runVM script
-    Left err -> log ("error: " <> show err)
+    Right script -> do
+       runVM script
+    Left err -> do
+       log ("error: " <> show err)
+       pure $ { val: none undefined
+              , cur: ""
+              , env: Top
+              , exprs: Nil
+              , states: []
+              }
+
+interact machine ctx =
+    case parse parseScript ctx of
+         Right script -> do
+            runStep machine script
+         Left err -> do
+            log ("error: " <> show err)
+            pure $ machine
 
 compile ctx = case parse parseScript ctx of
     Right script -> logShow script
     Left err -> log ("error: " <> show err)
 
--- main = log "Welcome to use BotScript"
--- main = compile ctx
-main = execute "`console.log -1"
+execute' ctx = do
+    machine <- execute ctx
+    log $ "=> " <> stringify_ machine.val
+
+main = log "Welcome to use BotScript"
