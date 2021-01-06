@@ -312,7 +312,8 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
         while@(While prd act) -> do
            prd' <- evalExpr machine prd
            (let nxt' = bool prd' (act : while : exprs) exprs in do
-                pure (Loop $ machine { exprs = (nxt' : exprss) }))
+                pure (Loop $ machine { val = prd'
+                                     , exprs = (nxt' : exprss) }))
 
         (Timer prd expr) -> do
            expr' <- evalExpr machine $ liftAbs expr
