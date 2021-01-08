@@ -16,12 +16,14 @@ import Text.Parsing.Parser
 import Text.Parsing.Parser.Combinators
 import Text.Parsing.Parser.Expr
 
-import Control.Alt ((<|>))
+import Control.Alt (alt, (<|>))
+import CustomToken (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter, emptyDef)
 import Data.Array as A
 import Data.Either (Either(..))
 import Data.List (List)
 import Data.List as L
 import Data.String.CodeUnits (fromCharArray, singleton)
+import Data.String.CodeUnits as SCU
 import Effect (Effect)
 import Effect.Console (log)
 import Effect.Exception (name)
@@ -29,12 +31,10 @@ import Text.Parsing.Parser (runParser)
 import Text.Parsing.Parser as P
 import Text.Parsing.Parser.Combinators as P
 import Text.Parsing.Parser.Expr as P
-import Text.Parsing.Parser.Language (emptyDef)
-import Text.Parsing.Parser.String (anyChar, char, eof, satisfy, string)
-import Text.Parsing.Parser.String (char, oneOf)
-import Text.Parsing.Parser.Token (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter)
-import Text.Parsing.Parser.Token (makeTokenParser)
+import Text.Parsing.Parser.String (anyChar, char, eof, satisfy, oneOf)
 import Undefined (undefined)
+-- import Text.Parsing.Parser.Token (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter)
+-- import Text.Parsing.Parser.Language (emptyDef)
 
 customStyle :: LanguageDef
 customStyle = LanguageDef (unGenLanguageDef emptyDef)
@@ -57,38 +57,34 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
 
 tokParser = makeTokenParser customStyle
 whiteSpace = tokParser.whiteSpace
-angles p = whiteSpace *> tokParser.angles p
-parens p = whiteSpace *> tokParser.parens p
-braces p = whiteSpace *> tokParser.braces p
-brackets p = whiteSpace *> tokParser.brackets p
-parseIdentifier = whiteSpace *> tokParser.identifier
-parseStringLiteral = whiteSpace *> tokParser.stringLiteral
-symbol xs = whiteSpace *> tokParser.symbol xs
-reserved xs = whiteSpace *> tokParser.reserved xs
-reservedOp xs = whiteSpace *> tokParser.reservedOp xs
-reservedOp' xs = whiteSpace *> tokParser.reservedOp xs *> pure xs
+angles p = tokParser.angles p
+parens p = tokParser.parens p
+braces p = tokParser.braces p
+brackets p = tokParser.brackets p
+parseIdentifier = tokParser.identifier
+parseStringLiteral = tokParser.stringLiteral
+parseKeyLiteral = tokParser.keyLiteral
+symbol xs = tokParser.symbol xs
+reserved xs = tokParser.reserved xs
+reservedOp xs = tokParser.reservedOp xs
+reservedOp' xs = tokParser.reservedOp xs *> pure xs
 
-parseBoolean = whiteSpace *>
+expect p = do
+  consume
+  val <- p
+  pure val
+
+parseBoolean =
     (reserved "true" *> pure true)
     <|> (reserved "false" *> pure false)
 
-parseNumber = whiteSpace *>
+parseNumber =
     (try tokParser.float)
     <|> (toNumber <$> tokParser.integer)
 
 parseArray exprP = fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
-      exprP `sepEndBy` (string ","))
-
--- event'types =
---     [ "join"
---     , "left"
---     , "play"
---     , "over"
---     , "milk"
---     , "talk"
---     , "priv"
---     ]
+      exprP `sepEndBy` (reservedOp ","))
 
 event'types =
     [ "me"
@@ -124,7 +120,7 @@ parseEtype = (choice $ map (\n ->
 
 parseEtypes = (do
   (brackets $ fromFoldable <$>
-      parseEtype `sepEndBy` (string ",")))
+      parseEtype `sepEndBy` (reservedOp ",")))
   <|> (do
       et <- parseEtype
       pure $ [et])
@@ -138,7 +134,7 @@ parsePmatch = do
 
 parseArguments = fix $ \self ->
   (parens $ fromFoldable <$>
-      parsePmatch `sepEndBy` (string ","))
+      parsePmatch `sepEndBy` (reservedOp ","))
   <|> (flip A.(:) [] <$> parsePmatch)
 
 parseAbsHead parseArgs = do
@@ -148,7 +144,7 @@ parseAbsHead parseArgs = do
 
 parseAbs exprP = do
     args <- try $ parseAbsHead parseArguments
-    body <- exprP
+    body <- expect $ exprP <?> "Lambda Body Expr"
     pure $ Abs args body
 
 mustLval lval =
@@ -159,7 +155,6 @@ mustLval lval =
         _ -> fail "Expected left value"
 
 parseBinding exprP expr = do
-    whiteSpace
     op <- reservedOp' "="
         <|> reservedOp' "+="
         <|> reservedOp' "-="
@@ -203,10 +198,9 @@ sub exprP = (brackets $ exprP >>= \sub'expr ->
        pure $ \expr -> Sub expr sub'expr)
 
 parseApp exprP = do
-  args <- parens $ exprP `sepEndBy` (string ",")
+  args <- parens $ exprP `sepEndBy` (reservedOp ",")
   P.optional (reservedOp ";")
   pure $ \expr -> App expr (fromFoldable args)
-
 
 binary name assoc =
     Infix ((Bin name) <$ reservedOp name) assoc
@@ -236,158 +230,191 @@ op'tab exprP =
     , [binary "||" AssocRight]
     ]
 
-parseLval exprP = whiteSpace *> (
+parseLval exprP = (
     buildExprParser
         [[postfix $ choice
             [dot, sub exprP]]]
         (parseTerm exprP)
 )
 
+parseSimpleExpr exprP =
+  buildExprParser (op'tab exprP) (parseTerm exprP)
+
 -- try to prevent consume input
 parseExpr :: ParserT String Identity Expr
-parseExpr = fix $ \self -> whiteSpace *> (
-    let exprP = buildExprParser
-                    (op'tab self)
-                    (parseTerm self) in do
-    (parseAbs self)
-    <|> (do
-        expr <- exprP
-        parseBinding self expr <|> pure expr
-        )
-    <|> parseStmtExpr self
-    <|> parseObject self
-    <?> "Expression"
-)
+parseExpr = fix $ \self -> do
+    expr <- (parseAbs self)
+            <|> (do
+                expr <- parseSimpleExpr self
+                parseBinding self expr <|> pure expr)
+            <|> parseStmtExpr self
+            <|> parseObject self
+            <?> "Expression"
+    pure expr
+
+-- parseKey :: ParserT String m String
+parseKey = let
+  folder :: Maybe Char -> L.List Char -> L.List Char
+  folder Nothing chars = chars
+  folder (Just c) chars = L.Cons c chars
+  stringLetter = satisfy (\c -> (c /= ':') && (c /= ' ') && (c > '\x1A'))
+  stringChar = (Just <$> stringLetter) in do
+    maybeChars <- (L.many stringChar)
+    pure $ SCU.fromCharArray $ L.toUnfoldable $ foldr folder L.Nil maybeChars
+
+
+parseObjKey = do
+  key <- parseStringLiteral
+      <|> parseKeyLiteral
+  -- key <- parseKey
+  reservedOp ":"
+  pure key
 
 parseObject :: ParserT String Identity Expr -> ParserT String Identity Expr
 parseObject exprP = let
     parseItem = do
-       key <- parseIdentifier
-       reservedOp ":"
-       value <- exprP
+       key <- try parseObjKey
+       value <- expect $ exprP <?> "Object Value Expr"
        pure $ key /\ value
     parseItems = do
-       items <- parseItem `sepEndBy` (string ",")
+       items <- parseItem `sepEndBy` (reservedOp ",")
        pure $ fromFoldable items in do
-          pairs <- braces $ parseItems
+          pairs <- braces parseItems
           pure $ Obj pairs
+
+parseIfels exprP = do
+  reserved "if"
+  prd <- expect $ exprP <?> "If Pred"
+  expect $ reserved "then"
+  thn <- expect $ exprP <?> "Then Expr"
+  maybe <- optionMaybe (reserved "else")
+  case maybe of
+     Just _ -> (do
+       els <- expect $ exprP <?> "Else Expr"
+       pure $ Ifels prd thn els)
+     Nothing -> pure $ Ifels prd thn (Group L.Nil)
+
+parseTimer exprP = do
+  reserved "timer"
+  prd <- expect $ exprP <?> "Timer Period"
+  act <- expect $ exprP <?> "Timer Expr"
+  pure $ Timer prd act
+
+parseWhile exprP = do
+  reserved "while"
+  prd <- expect $ exprP <?> "While Pred"
+  act <- expect $ exprP <?> "While Expr"
+  pure $ While prd act
+
+parseLater exprP = do
+  reserved "later"
+  time <- expect $ exprP <?> "Later Period"
+  expr <- expect $ exprP <?> "Later Expr"
+  pure $ Later time expr
+
+parseEvent exprP = do
+  reserved "event"
+  name <- expect $ parseEtypes
+  expr <- expect $ exprP <?> "Event Expr"
+  pure $ Event name expr
+
+parseFLoop exprP = let
+  desc = do
+     init <- expect $ exprP <?> "For Init Expr"
+     cond <- expect $ exprP <?> "For Cond Expr"
+     step <- expect $ exprP <?> "For Step Expr"
+     pure $ init /\ cond /\ step in do
+        reserved "for"
+        init /\ cond /\ step <- (parens desc <|> desc)
+        body <- expect $ exprP <?> "For Body Expr"
+        pure $ Group (L.fromFoldable
+         [init, While cond
+         (Group (L.fromFoldable [body, step]))])
+
+parseForIn exprP = let
+  desc = do
+     var <- parseLval exprP <?> "For Var"
+     var' <- mustLval var
+     reserved "in"
+     iter <- expect $ exprP <?> "For Iter"
+     pure $ var' /\ iter in do
+        reserved "for"
+        var /\ iter <- (parens desc <|> desc)
+        body <- expect $ exprP <?> "For Body Expr"
+        pure $ Group (L.fromFoldable
+         [ (Renew (Var "@iter")
+            (App (Dot
+                (App (Dot
+                     (Var "Object") "keys") [iter]
+                ) "values") [])
+            )
+         , (Renew (Var "@it")
+            (App (Dot (Var "@iter") "next") []))
+         , While (Una "!" (Dot (Var "@it") "done"))
+         (Group (L.fromFoldable
+            [ (Renew var (Dot (Var "@it") "value"))
+            , body
+            , (Renew (Var "@it")
+                (App (Dot (Var "@iter") "next") []))
+            ]))
+         ])
+
+parseForOf exprP = let
+  desc = do
+     var <- parseLval exprP <?> "For Var"
+     var' <- mustLval var
+     reserved "of"
+     iter <- expect $ exprP <?> "For Iter"
+     pure $ var' /\ iter in do
+        reserved "for"
+        var /\ iter <- (parens desc <|> desc)
+        body <- expect $ exprP <?> "For Body Expr"
+        pure $ Group (L.fromFoldable
+         [ (Renew (Var "@iter")
+            (App (Dot
+                (App (Dot
+                    (Var "Object") "values") [iter])
+                "values") []))
+         , (Renew (Var "@it")
+            (App (Dot (Var "@iter") "next") []))
+         , While (Una "!" (Dot (Var "@it") "done"))
+         (Group (L.fromFoldable
+            [ (Renew var (Dot (Var "@it") "value"))
+            , body
+            , (Renew (Var "@it")
+                (App (Dot (Var "@iter") "next") []))
+            ]))
+         ])
+
+parseStmt exprP
+  = parseIfels exprP
+  <|> parseTimer exprP
+  <|> parseWhile exprP
+  <|> parseLater exprP
+  <|> parseEvent exprP
+  <|> parseForIn exprP
+  <|> parseForOf exprP
+  <|> parseFLoop exprP
+  <|> (reserved "going" *> (Going <$> expect parseIdentifier))
+  <|> (reserved "visit" *> (Visit <$> parseIdentifier))
+  <|> (do
+      exprs <- braces $ L.many exprP
+      case exprs of
+           L.Nil -> pure $ Obj []
+           _ -> pure $ Group exprs)
 
 parseStmtExpr :: ParserT String Identity Expr -> ParserT String Identity Expr
 parseStmtExpr exprP = (do
-  stmtExpr <- (
-      (braces $ Group <$> L.many exprP)
-      <|> (do
-          reserved "later"
-          time <- exprP
-          expr <- exprP
-          pure $ Later time expr)
-      <|> (do
-          reserved "event"
-          name <- parseEtypes
-          expr <- exprP
-          pure $ Event name expr)
-      <|> (do
-          reserved "if"
-          prd <- exprP <?> "If Pred"
-          thn <- exprP <?> "Then Expr"
-          maybe <- optionMaybe (reserved "else")
-          case maybe of
-             Just _ -> (do
-               els <- exprP <?> "Else Expr"
-               pure $ Ifels prd thn els)
-             Nothing -> pure $ Ifels prd thn (Group L.Nil))
-      <|> try (let -- for loop
-          desc = do
-             init <- exprP <?> "For Init Expr"
-             cond <- exprP <?> "For Cond Expr"
-             P.optional (reservedOp ";")
-             step <- exprP <?> "For Step Expr"
-             pure $ init /\ cond /\ step in do
-                reserved "for"
-                init /\ cond /\ step <- (parens desc <|> desc)
-                body <- exprP <?> "For Body Expr"
-                pure $ Group (L.fromFoldable
-                 [init, While cond
-                 (Group (L.fromFoldable [body, step]))])
-            )
-      <|> (let -- for iter in
-          desc = do
-             whiteSpace
-             var <- parseLval exprP <?> "For Var"
-             var' <- mustLval var
-             reserved "in"
-             iter <- exprP <?> "For Iter"
-             pure $ var' /\ iter in do
-                reserved "for"
-                var /\ iter <- (parens desc <|> desc)
-                body <- exprP <?> "For Body Expr"
-                pure $ Group (L.fromFoldable
-                 [ (Renew (Var "@iter")
-                    (App (Dot
-                        (App (Dot
-                             (Var "Object") "keys") [iter]
-                        ) "values") [])
-                    )
-                 , (Renew (Var "@it")
-                    (App (Dot (Var "@iter") "next") []))
-                 , While (Una "!" (Dot (Var "@it") "done"))
-                 (Group (L.fromFoldable
-                    [ (Renew var (Dot (Var "@it") "value"))
-                    , body
-                    , (Renew (Var "@it")
-                        (App (Dot (Var "@iter") "next") []))
-                    ]))
-                 ])
-            )
-      <|> (let -- for of
-          desc = do
-             whiteSpace
-             var <- parseLval exprP <?> "For Var"
-             var' <- mustLval var
-             reserved "of"
-             iter <- exprP <?> "For Iter"
-             pure $ var' /\ iter in do
-                reserved "for"
-                var /\ iter <- (parens desc <|> desc)
-                body <- exprP <?> "For Body Expr"
-                pure $ Group (L.fromFoldable
-                 [ (Renew (Var "@iter")
-                    (App (Dot
-                        (App (Dot
-                            (Var "Object") "values") [iter])
-                        "values") []))
-                 , (Renew (Var "@it")
-                    (App (Dot (Var "@iter") "next") []))
-                 , While (Una "!" (Dot (Var "@it") "done"))
-                 (Group (L.fromFoldable
-                    [ (Renew var (Dot (Var "@it") "value"))
-                    , body
-                    , (Renew (Var "@it")
-                        (App (Dot (Var "@iter") "next") []))
-                    ]))
-                 ])
-            )
-      <|> (do
-          reserved "while"
-          prd <- exprP <?> "Pred"
-          act <- exprP <?> "While Expr"
-          pure $ While prd act)
-      <|> (reserved "going" *> (Going <$> parseIdentifier))
-      <|> (reserved "visit" *> (Visit <$> parseIdentifier))
-      <|> (do
-          reserved "timer"
-          prd <- exprP <?> "Timer Period"
-          act <- exprP <?> "Timer Expr"
-          pure $ Timer prd act)
-  ) -- may consume, need restore
+  stmtExpr <- parseStmt exprP
   P.optional (reservedOp ";")
   pure stmtExpr)
   <|> ((Group L.Nil) <$ reservedOp ";")
+  <?> "Statement Expression"
 
 parseState = do
   reserved "state"
   name <- (parseIdentifier <?> "State Name")
-  expr <- parseExpr
+  expr <- parseExpr <?> "State Expr"
   pure $ BotState name expr
 
 testParseStates = do
@@ -401,9 +428,7 @@ testParseExprs =
     <|> pure (false /\ [])
 
 parseScript' = do
-        whiteSpace
         (sr /\ states) <- testParseStates
-        whiteSpace
         (ar /\ exprs) <- testParseExprs
         if sr || ar then
             pure $ states /\ exprs

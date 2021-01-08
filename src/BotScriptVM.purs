@@ -298,7 +298,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 (Sub obj sub) -> do
                    obj' <- evalExpr machine obj
                    sub' <- evalExpr machine sub
-                   liftEffect $ updMem obj' sub val'
+                   liftEffect $ updMem obj' sub' val'
                    pure <<< Loop $ machine' {val = val'}
                 _ -> do
                    liftEffect $ logShow "invalid renew"
