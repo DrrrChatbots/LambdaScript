@@ -132,18 +132,27 @@ parsePmatch = do
          Just pattern -> pure $ var /\ pattern
          Nothing -> pure $ var /\ (Trm $ toTerm "String" "")
 
-parseArguments = fix $ \self ->
+parseArgs = fix $ \self -> do
+  try $ reservedOp "("
+  reservedOp ")"
+  pure $ []
+
+parseArgs' = fix $ \self ->
   (parens $ fromFoldable <$>
       parsePmatch `sepEndBy` (reservedOp ","))
-  <|> (flip A.(:) [] <$> parsePmatch)
 
-parseAbsHead parseArgs = do
-    args <- parseArgs
+parseArgs'' = fix $ \self ->
+  (flip A.(:) [] <$> parsePmatch)
+
+parseAbsHead argsP = do
+    args <- argsP
     reservedOp "=>"
     pure args
 
 parseAbs exprP = do
-    args <- try $ parseAbsHead parseArguments
+    args <- (parseAbsHead parseArgs
+      <|> (try $ parseAbsHead parseArgs')
+      <|> (try $ parseAbsHead parseArgs''))
     body <- expect $ exprP <?> "Lambda Body Expr"
     pure $ Abs args body
 
