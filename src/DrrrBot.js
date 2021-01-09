@@ -62,7 +62,7 @@ exports.clearAllEvent = () => {
 }
 
 exports.setcur = state => () => {
-  exports.events[exports.cur] = [];
+  if(exports.cur) exports.events[exports.cur] = [];
   exports.cur = state;
 }
 
