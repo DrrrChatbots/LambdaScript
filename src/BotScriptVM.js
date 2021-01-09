@@ -127,6 +127,7 @@ exports.clearTimer = state => () => {
 }
 
 exports.toNumber = Number
+exports.toBoolean = Boolean
 
 exports.toVaArgFunction = (fn) => {
   return function(...args){

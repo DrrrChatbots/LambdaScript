@@ -116,26 +116,21 @@ event msg (user, cont: "^new$") => theNumber = generate()
 print(theNumber = generate())
 """
 
-ctx = """
-(a) {}
-"""
-
 wolf = """
 victim = []
 players = []
-
 // 0 狼 1 平民 2 預言家 3 女巫 4 獵人
 roleName = ["狼", "平民", "預言家", "女巫", "獵人"]
-rolesMap = Object()
-rolesMap[5] = [0, 1, 1, 2, 3]
-rolesMap[6] = [0, 0, 1, 1, 2, 3]
-rolesMap[7] = [0, 0, 1, 1, 1, 2, 3]
+rolesMap = {
+  5 : [0, 1, 1, 2, 3],
+  6 : [0, 0, 1, 1, 2, 3],
+  7 : [0, 0, 1, 1, 1, 2, 3]
 //8: [0, 0, 1, 2, 3, 3, 3, 4],
-// literal key, empty object
+}
 
 roles = []
 alive = []
-vote = Object()
+vote = {}
 
 select = (cont, users) => {
   the = ""
@@ -165,24 +160,27 @@ passJudge = () => {
 }
 
 state prepare {
-  event [msg, me] (user, cont: "^+1$") => {
+  roles = []
+  alive = []
+  event [msg, me] (user, cont: "^\\+1$") => {
     if players.includes(user) then
       drrr.print("/me" + user + " 已經加入了")
     else{
       players.push(user)
-      drrr.print(user + " 加入遊戲")
+      drrr.print("/me" + user + " 加入遊戲")
     }
   }
-  event [msg, me] (user, cont: "^-1$") {
+  event [msg, me] (user, cont: "^-1$") => {
     if players.includes(user) then {
       players.splice(players.indexOf(user), 1);
       drrr.print("/me" + user + " 退出遊戲")
     }
-    else drrr.print(user + " 不在遊戲中")
+    else drrr.print("/me" + user + " 不在遊戲中")
   }
   event [msg, me] (user, cont: "^/list$") => {
-    drrr.print(players.map((user, index) => String(index) + ". " + user).join("\n"))
-    drrr.print("玩家：")
+    if players.length then {
+    	drrr.print("玩家：\n" + players.map((user, index) => String(index + 1) + ". " + user).join("\n"))
+    } else drrr.print("/me 沒有玩家")
   }
   event [msg, me] (user, cont: "^/start$") => {
     if
@@ -190,14 +188,13 @@ state prepare {
     then
       going prelude
     else
-      drrr.print("需滿足 5 - 7 人, 目前 " + String(players.length) + "人")
+      drrr.print("/me需滿足 5 - 7 人, 目前 " + String(players.length) + "人")
   }
   drrr.print("/me +1 加入, -1 退出, /list 玩家列表, /start 開始遊戲")
 }
 
 state prelude {
-  drrr.print(players.map((user, index) => String(index) + ". " + user).join("\n"))
-  drrr.print("玩家：")
+  drrr.print("玩家：" + players.map((user, index) => String(index + 1) + ". " + user).join("\n"))
 
   roles = rolesMap[players.length]
   roles.sort(()=>Math.random() - 0.5)
@@ -207,22 +204,22 @@ state prelude {
     if
       roles[index]
     then
-      drrr.dm(user, "你的身份是:" + roleName[roles[index]])
+      later index * 3500 drrr.dm(user, "你的身份是:" + roleName[roles[index]])
     else
-      drrr.dm("你是狼, 所有狼是：" +
-        players.filter((user, index)=>roles[index] == 0).join(" "))
+      later index * 3500 drrr.dm("你是狼, 所有狼是：" +
+        players.filter((user, index)=>roles[index] == 0).join(", "))
   })
 
-  going night
+  later players.length * 4000 going night
 }
 
 state night {
   drrr.print("/me天黑請閉眼")
-  later 3000 going night_seer
+  later 3500 going night_seer
 }
 
 state night_seer {
-  drrr.print("/me 預言家請睜眼，你想知道關於誰的訊息（人名）...")
+  drrr.print("/me 預言家請睜眼，你想知道關於誰的訊息（*私信* [人名]）...")
   event dm (seer, cont) => {
     if players.includes(seer) then {
       if roles[players.indexOf(seer)] == 2 then {
@@ -236,7 +233,7 @@ state night_seer {
             else
               "狼"
           )
-          going night_wolf
+          later 3500 going night_wolf
         }
         else drrr.dm(seer, "沒這個人")
       }
@@ -245,7 +242,7 @@ state night_seer {
 }
 
 state night_wolf {
-  drrr.print("/me 狼人請睜眼，請採取行動（no or 人名）...")
+  drrr.print("/me 狼人請睜眼，請採取行動（*私信* [no] or [人名]）...")
   event dm (wolf, cont) => {
     if players.includes(wolf) then {
       if roles[players.indexOf(wolf)] == 0 then {
@@ -256,7 +253,7 @@ state night_wolf {
           the = select(cont, players)
           if the then {
             victim = [user]
-            going night_witch
+            later 3500 going night_witch
           }
           else drrr.dm(wolf, "沒這個人")
         }
@@ -266,27 +263,27 @@ state night_wolf {
 }
 
 state night_witch {
-  drrr.print("/me 女巫請睜眼，請採取行動（no or 救 + 人名 or 毒 + 人名）...")
+  drrr.print("/me 女巫請睜眼，請採取行動（*私信* [no] or [救] or [毒 人名]）...")
   players.forEach((user, index) => {
     if roles[players.indexOf(user)] == 3 then {
-      drrr.dm(user, "受害者：" + String(victim))
+      later 3500 drrr.dm(user, "受害者：" + victim.join(", "))
     }
   })
   event dm (witch, cont) => {
     if players.includes(witch) then {
       if roles[players.indexOf(witch)] == 3 then {
         if cont.startsWith("no") then {
-          going night_end
+          later 3500 going night_end
         }
         else if cont.includes("救") then {
           victim = []
-          going night_end
+          later 3500 going night_end
         }
         else if cont.includes("毒") then {
           for user of players {
             if cont.includes(user) then {
               victim.push(user)
-              going night_end
+              later 3500 going night_end
             }
           }
         }
@@ -297,34 +294,36 @@ state night_witch {
 
 state night_end {
   if victim.length then {
-    drrr.print("/me天亮了," + String(victim) + "死了")
+    drrr.print("/me天亮了," + victim.join(", ") + "死了")
     players.forEach((user, index) => {
       if victim.includes(user) then alive[index] = false
     })
   }
   else drrr.print("/me天亮了 沒有人死")
-  drrr.print("倖存者：" + String(players.filter((u, i) => alive[i])))
-  going day_discussion
+  later 3500 {
+    drrr.print("倖存者：" + players.filter((u, i) => alive[i]).join(", "))
+    later 3500 going day_discussion
+  }
 }
 
 state day_discussion {
   index = 0
-  drrr.print("請" + players[index] + "開始發言 (over 結尾)")
+  drrr.print("/me請" + players[index] + "開始發言 ([over] 結尾)")
   event [msg, me] (user, cont) => {
     if players.includes(user) then {
       if cont.includes("over") then
         index += 1
       if index > players.length then
-        going day_vote
+        later 3500 going day_vote
       else
-        drrr.print("請" + players[index] + "開始發言 (over 結尾)")
+        drrr.print("/me請" + players[index] + "開始發言 ([over] 結尾)")
     }
   }
 }
 
 state day_vote {
-  drrr.print("請開始投票 (/vote 看目前已投票玩家, 私信 人名 或是 no 棄票)")
-  vote = Object()
+  drrr.print("/me請開始投票 ([/vote] 看目前已投票玩家, *私信* [人名] 或是 [no] 棄票)")
+  vote = {}
   event dm (user, cont) => {
     if players.includes(user) then {
       the = select(cont, players)
@@ -332,35 +331,37 @@ state day_vote {
         vote[user] = the
         drrr.dm(user, "ok, 你投了 " + the)
         if Object.keys(vote).length == players.length then
-          going day_execute
+          later 3500 going day_execute
       }
       else if cont.startsWith("no") then {
         vote[user] = "no"
         drrr.dm(user, "ok, 你棄票了")
         if Object.keys(vote).length == players.length
-        then going day_execute
+        then later 3500 going day_execute
       }
       else
         drrr.dm(user, "沒這個人")
     }
   }
   event [msg, me] (user, cont: "^/vote$") => {
-    drrr.print("目前已投票：" + String(Object.keys(vote)))
+    drrr.print("/me目前已投票：" + Object.keys(vote).join(", "))
   }
 }
 
 state day_execute {
   louis = most(Object.values(vote).filter((x) => x != "no"))
-  drrr.print("最高得票人：" + String(louis))
+  drrr.print("/me最高得票人：" + String(louis))
   players.forEach((user, index) => {
     if louis.includes(user) then alive[index] = false
   })
-  drrr.print("倖存者：" + String(players.filter((u, i) => alive[i])))
-  if passJudge() >= 0
-  then
-    going night
-  else
-    going game_over
+  later 3500 {
+    drrr.print("倖存者：" + players.filter((u, i) => alive[i]).join(", "))
+    if passJudge() >= 0
+    then
+      later 3500 going night
+    else
+      later 3500 going game_over
+  }
 }
 
 state game_over {
@@ -370,6 +371,8 @@ state game_over {
   else
     drrr.print("/me遊戲結束, 狼人勝出")
 }
+
+going prepare
 """
 
 execute ctx = case parse parseScript ctx of
@@ -397,10 +400,40 @@ testing parser context = case parse parser context of
     Right ir -> logShow ir
     Left err -> log ("error: " <> show err)
 
--- doing = execute'
+testAbs = do
+  testing parseScript "()" -- fail
+  testing parseScript "a" -- pass
+  testing parseScript "a : \"h\"" -- fail
+  testing parseScript "(a)" -- pass
+  testing parseScript "(a, b)" -- fail
+  testing parseScript "1" -- pass
+  testing parseScript "\"hello\"" -- pass
+
 doing = execute'
+
+ctx = """
+players = ["1"]
+alive = 1
+index = 0
+while (index < players.length) && (alive[index] == 0) index++;
+print("/me請" + players[index] + "開始發言 ([over] 結尾)")
+
+user = "1"
+cont = "over"
+if players[index] == user then {
+  if cont.includes("over") then {
+    index++ // += bug?
+    while (index < players.length) && (alive[index] == 0) index++;
+    if index >= players.length
+    then later 3500 going day_vote
+    print("/me請" + players[index] + "開始發言 ([over] 結尾)")
+  }
+}
+
+"""
+
 main = do
-  -- doing testLoop
+  doing testLoop
   -- doing testAjax
   -- doing testRecursion
   -- doing testLift
@@ -408,5 +441,9 @@ main = do
   -- doing testVisit
   -- doing guessNumber
   -- doing wolf
+  -- compile wolf
   -- doing ctx
-  testing parseScript ctx
+  -- doing "0 && print(2)"
+  -- doing "print(2) || print(2)"
+  -- doing "for(j in {tom: 1}) 1;"
+  -- testAbs

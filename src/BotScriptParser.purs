@@ -1,22 +1,26 @@
 module BotScriptParser where
 
 import BotScript
-import Control.Lazy
-import Data.Array
-import Data.Foldable
+import Data.Array hiding (null)
+import Data.Foldable hiding (null)
 import Data.Function
 import Data.Functor
 import Data.Identity
 import Data.Int
 import Data.Maybe
-import Data.String
+import Data.String hiding (null)
 import Data.Tuple.Nested
 import Prelude
 import Text.Parsing.Parser
 import Text.Parsing.Parser.Combinators
 import Text.Parsing.Parser.Expr
+import Text.Parsing.Parser.String (null)
 
+import Control.Lazy
+import Control.Applicative
 import Control.Alt (alt, (<|>))
+import Control.Monad.State (gets, modify_)
+
 import CustomToken (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter, emptyDef)
 import Data.Array as A
 import Data.Either (Either(..))
@@ -126,33 +130,59 @@ parseEtypes = (do
       pure $ [et])
 
 parsePmatch = do
-    var <- parseIdentifier
+    var <- try parseIdentifier
     maybe <- optionMaybe (reservedOp ":" *> parseExpr)
     case maybe of
-         Just pattern -> pure $ var /\ pattern
-         Nothing -> pure $ var /\ (Trm $ toTerm "String" "")
+         Just pattern -> do pure $ (true /\ var /\ pattern)
+         Nothing -> pure $ (false /\ var /\ (Trm $ toTerm "String" ""))
 
+-- () => body
 parseArgs = fix $ \self -> do
   try $ reservedOp "("
   reservedOp ")"
+  consume
+  reservedOp "=>"
   pure $ []
 
-parseArgs' = fix $ \self ->
-  (parens $ fromFoldable <$>
-      parsePmatch `sepEndBy` (reservedOp ","))
-
-parseArgs'' = fix $ \self ->
-  (flip A.(:) [] <$> parsePmatch)
-
-parseAbsHead argsP = do
-    args <- argsP
+-- a => body
+-- a : "" => body
+parseArgs'' = fix $ \self -> do
+  (b /\ v /\ p) <- lookAhead parsePmatch
+  if b then do
+    _ <- parsePmatch
     reservedOp "=>"
-    pure args
+    pure $ [(v /\ p)]
+  else
+    try (do
+     _ <- parsePmatch
+     reservedOp "=>"
+     pure $ [(v /\ p)])
+
+-- (a) => body
+-- (a : "") => body
+-- (a, b) => body
+parseArgs' = fix $ \self -> do
+  args <- lookAhead (parens $ fromFoldable <$>
+    parsePmatch `sepEndBy` (reservedOp ","))
+  case args of
+    [(false /\ v /\ p)] -> try (do
+      _ <- (parens $ fromFoldable <$>
+        parsePmatch `sepEndBy` (reservedOp ","))
+      reservedOp "=>"
+      pure $ [(v /\ p)]
+    )
+    _ -> (do
+      _ <- (parens $ fromFoldable <$>
+        parsePmatch `sepEndBy` (reservedOp ","))
+      consume
+      reservedOp "=>"
+      pure $ map (\(b /\ v /\ p) -> (v /\ p)) args
+    )
 
 parseAbs exprP = do
-    args <- (parseAbsHead parseArgs
-      <|> (try $ parseAbsHead parseArgs')
-      <|> (try $ parseAbsHead parseArgs''))
+    args <- (parseArgs
+      <|> parseArgs'
+      <|> parseArgs'')
     body <- expect $ exprP <?> "Lambda Body Expr"
     pure $ Abs args body
 
@@ -161,7 +191,7 @@ mustLval lval =
         Sub _ _ -> pure lval
         Var _ -> pure lval
         Dot _ _ -> pure lval
-        _ -> fail "Expected left value"
+        _ -> fail ("Expected left value, Get " <> show lval)
 
 parseBinding exprP expr = do
     op <- reservedOp' "="
@@ -214,6 +244,9 @@ parseApp exprP = do
 binary name assoc =
     Infix ((Bin name) <$ reservedOp name) assoc
 
+binary' name assoc =
+    Infix ((Bin name) <$ reserved name) assoc
+
 prefix  p = Prefix  <<< chainl1 p $ pure       (<<<)
 postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
 
@@ -225,7 +258,7 @@ op'tab exprP =
     , [binary "<=" AssocLeft]
     , [binary ">" AssocLeft]
     , [binary ">=" AssocLeft]
-    , [binary "in" AssocLeft]
+    , [binary' "in" AssocLeft]
     , [binary "===" AssocLeft]
     , [binary "==" AssocLeft]
     , [binary "!==" AssocLeft]
@@ -443,10 +476,16 @@ parseScript' = do
             pure $ states /\ exprs
         else fail "Expected State or Expression"
 
+anyToken = do
+  chars <- many (satisfy \c -> (c /= ' '))
+  pure $ SCU.fromCharArray chars
+
 parseScript = do
     whiteSpace
     xs <- many parseScript'
-    eof
+    (do
+      unexp <- anyToken
+      fail $ ("Unexpected token: " <> unexp)) <|> eof
     pure let s /\ a = unzip xs in
         BotScript (L.fromFoldable $ concat a) (concat s)
 

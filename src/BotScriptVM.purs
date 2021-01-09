@@ -16,6 +16,7 @@ import BotScriptEnv (Env(..))
 import BotScriptEnv as Env
 import Control.Comonad.Env (env)
 import Control.Monad.Rec.Class (Step(..), tailRec, tailRecM, tailRecM2, untilJust, whileJust)
+
 import Data.Array as A
 import Data.List (List(..), (:))
 import Data.Time.Duration (Milliseconds(..))
@@ -33,6 +34,7 @@ foreign import setTimer :: forall a. String -> Term -> Term -> Effect Unit
 foreign import clearTimer :: String -> Effect Unit
 foreign import clearAllTimer :: Effect Unit
 foreign import toNumber :: Term -> Number
+foreign import toBoolean :: Term -> Boolean
 foreign import stringify :: forall a. a -> String
 
 runExpr expr machine = tailRecM run machine'
@@ -162,6 +164,22 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                          _ <- lvalUpdate machine val val''
                          loop''
                      _ -> loop'')
+
+        (Bin "||" lv rv) -> do
+           lv' <- evalExpr machine lv
+           if toBoolean lv'
+             then pure <<< Loop $ machine' { val = lv' }
+             else do
+                rv' <- evalExpr machine rv
+                pure <<< Loop $ machine' { val = rv' }
+
+        (Bin "&&" lv rv) -> do
+           lv' <- evalExpr machine lv
+           if toBoolean lv'
+             then do
+                rv' <- evalExpr machine rv
+                pure <<< Loop $ machine' { val = rv' }
+             else pure <<< Loop $ machine' { val = lv' }
 
         (Bin op lv rv) -> do
            lv' <- evalExpr machine lv
