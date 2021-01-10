@@ -284,10 +284,8 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
               Just (BotState _ acts') -> do
                       liftEffect $ setcur stat
                       liftEffect $ clearTimer machine.cur
-                      pure (Loop $ machine { cur = stat
-                                           , env = env -- because will return , so no clear env (dynamic scoping)
-                                           , exprs = ((acts' : (Reset machine.cur) : exprs) : exprss)
-                                           })
+                      -- because will return , so no clear env (dynamic scoping)
+                      pure (Loop $ machine { exprs = ((acts' : (Reset machine.cur) : exprs) : exprss) })
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> stat <> "> not found"

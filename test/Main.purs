@@ -413,15 +413,12 @@ doing = execute'
 
 ctx = """
 state t {
-  print("hello")
+  print("hello" + String(i))
 }
 
-visit t
 for i in [1,2,3] {
-  print(i)
   visit t
 }
-visit t
 """
 
 main = do
