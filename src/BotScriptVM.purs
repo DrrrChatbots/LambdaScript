@@ -47,6 +47,7 @@ foreign import memberOf :: Term -> Term -> Term
 foreign import updMem :: forall a. Term -> a -> Term -> Effect Unit
 foreign import toVaArgFunction :: forall a. a -> Term
 foreign import new :: Term -> (Array Term) -> Term
+foreign import delete :: Term -> Term -> Term
 
 lvalUpdate ms@{env: env} lval val =
     case lval of
@@ -144,6 +145,20 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                  _ -> do
                     liftEffect <<< log $ "\"new\" need a constructor"
                     pure <<< Loop $ machine' { val = none undefined }
+
+        (Una "delete" val) ->
+            case val of
+                (Dot obj mem) -> do
+                   obj' <- evalExpr machine obj
+                   (let mem' = (toTerm "String" mem) in
+                        pure <<< Loop $ machine' { val = delete obj' mem' })
+                (Sub obj sub) -> do
+                   obj' <- evalExpr machine obj
+                   sub' <- evalExpr machine sub
+                   pure <<< Loop $ machine' { val = delete obj' sub' }
+                _ -> do
+                   expr' <- evalExpr machine val
+                   pure <<< Loop $ machine' { val = delete expr' undefined }
 
         (Una op val) -> do
            val' <- evalExpr machine val

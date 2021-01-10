@@ -55,7 +55,7 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                     , "in", "of"
                     -- , "title", "descr" , "print" ,"order"
                     ]
-                , reservedOpNames = [":", ",", "new"]
+                , reservedOpNames = [":", ",", "new", "delete"]
                 , caseSensitive   = false
                 }
 
@@ -223,6 +223,7 @@ parseTerm exprP = choice
 neg = (Una "-" <$ reservedOp "-")
 not = (Una "!" <$ reservedOp "!")
 new = (Una "new" <$ reservedOp "new")
+delete = (Una "delete" <$ reservedOp "delete")
 
 inc's = (Una "_++" <$ reservedOp "++")
 dec's = (Una "_--" <$ reservedOp "--")
@@ -253,7 +254,7 @@ postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
 op'tab exprP =
     [ [postfix $ choice
       [parseApp exprP, dot, sub exprP, inc's, dec's]]
-    , [prefix $ choice [neg, not, new, inc'p, dec'p]]
+    , [prefix $ choice [neg, not, new, delete, inc'p, dec'p]]
     , [binary "<" AssocLeft]
     , [binary "<=" AssocLeft]
     , [binary ">" AssocLeft]

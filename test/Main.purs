@@ -412,28 +412,14 @@ testAbs = do
 doing = execute'
 
 ctx = """
-players = ["1"]
-alive = 1
-index = 0
-while (index < players.length) && (alive[index] == 0) index++;
-print("/me請" + players[index] + "開始發言 ([over] 結尾)")
-
-user = "1"
-cont = "over"
-if players[index] == user then {
-  if cont.includes("over") then {
-    index++ // += bug?
-    while (index < players.length) && (alive[index] == 0) index++;
-    if index >= players.length
-    then later 3500 going day_vote
-    print("/me請" + players[index] + "開始發言 ([over] 結尾)")
-  }
-}
-
+a.l = 3
+print(a)
+delete a.l
+print(a)
 """
 
 main = do
-  doing testLoop
+  -- doing testLoop
   -- doing testAjax
   -- doing testRecursion
   -- doing testLift
@@ -442,7 +428,7 @@ main = do
   -- doing guessNumber
   -- doing wolf
   -- compile wolf
-  -- doing ctx
+  doing ctx
   -- doing "0 && print(2)"
   -- doing "print(2) || print(2)"
   -- doing "for(j in {tom: 1}) 1;"
