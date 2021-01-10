@@ -80,8 +80,8 @@ make'event'action syms expr machine@{env: env} =
     toVaArgFunction (\args ->
     let env' = bind'event'vars (A.(:) "args" syms) args (Env.pushEnv env)
         machine' = machine { exprs = ((expr : Nil) : Nil)
-                             , env = env'
-                             } in do
+                           , env = env'
+                           } in do
         machine'' <- tailRecM run machine'
         pure machine''.val
     )
@@ -271,7 +271,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                       liftEffect $ setcur dest
                       liftEffect $ clearTimer machine.cur
                       pure (Loop $ machine { cur = dest
-                                           , env = top'env
+                                           , env = top'env -- will not return, so clear env (static scoping)
                                            , exprs = ((acts' : Nil) : Nil)})
               Nothing -> do
                   liftEffect <<< log $
@@ -281,14 +281,13 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
         (Visit stat) ->
             case find (\(BotState name _)
                        -> name == stat) machine.states of
-              Just (BotState _ acts') ->
-                  let top'env = Env.topEnv env in do
+              Just (BotState _ acts') -> do
                       liftEffect $ setcur stat
                       liftEffect $ clearTimer machine.cur
                       pure (Loop $ machine { cur = stat
-                                         , env = top'env
-                                         , exprs = ((acts' : (Reset machine.cur) : exprs) : exprss)
-                                         })
+                                           , env = env -- because will return , so no clear env (dynamic scoping)
+                                           , exprs = ((acts' : (Reset machine.cur) : exprs) : exprss)
+                                           })
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> stat <> "> not found"

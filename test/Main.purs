@@ -412,11 +412,16 @@ testAbs = do
 doing = execute'
 
 ctx = """
-a.l = 3
-print(a)
-delete a.l
-print(a.l)
-print(aa)
+state t {
+  print("hello")
+}
+
+visit t
+for i in [1,2,3] {
+  print(i)
+  visit t
+}
+visit t
 """
 
 main = do
