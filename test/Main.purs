@@ -415,7 +415,8 @@ ctx = """
 a.l = 3
 print(a)
 delete a.l
-print(a)
+print(a.l)
+print(aa)
 """
 
 main = do

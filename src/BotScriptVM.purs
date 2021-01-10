@@ -305,7 +305,6 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                                  , exprs = (actions : exprs : exprss)
                                  })
 
-        -- TODO
         event@(Event etypes expr) ->
             let (pars /\ expr') = (case expr of
                        (Abs pars expr) -> pars /\ expr

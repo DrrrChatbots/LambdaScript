@@ -1,3 +1,7 @@
+
+unit = () => false
+//unit = () => Object()
+
 exports.evalBin = op => lval => rval => {
   lval = lval.valueOf();
   rval = rval.valueOf();
@@ -71,10 +75,10 @@ exports.evalApp = objm => obj => name => args => {
   }
   catch(err){
     console.log(String(err));
-    return {};
+    return unit();
   }
 
-  return val === undefined || val == null ? {} : val;
+  return val === undefined || val == null ? unit() : val;
 }
 
 invokFunction = namespace => syms => {
@@ -91,14 +95,14 @@ invokFunction = namespace => syms => {
 
 exports.memberOf = obj => name => {
   val = obj[name];
-  return val === undefined || val == null ? {} : val;
+  return val === undefined || val == null ? unit() : val;
 }
 
 exports.updMem = obj => name => val => () => {
   obj[name] = val;
 }
 
-exports.none = () => Object()
+exports.none = unit
 
 exports.bool = pred => thn => els => {
   return pred.valueOf() ? thn : els;
