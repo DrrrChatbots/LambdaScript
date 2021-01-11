@@ -52,10 +52,10 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                     ["state", "true", "false", "event"
                     , "later", "going", "if", "else"
                     , "for", "while", "visit", "timer"
-                    , "in", "of"
+                    , "in", "of", "new", "delete"
                     -- , "title", "descr" , "print" ,"order"
                     ]
-                , reservedOpNames = [":", ",", "new", "delete"]
+                , reservedOpNames = [":", ","]
                 , caseSensitive   = false
                 }
 
@@ -222,8 +222,8 @@ parseTerm exprP = choice
 
 neg = (Una "-" <$ reservedOp "-")
 not = (Una "!" <$ reservedOp "!")
-new = (Una "new" <$ reservedOp "new")
-delete = (Una "delete" <$ reservedOp "delete")
+new = (Una "new" <$ reserved "new")
+delete = (Una "delete" <$ reserved "delete")
 
 inc's = (Una "_++" <$ reservedOp "++")
 dec's = (Una "_--" <$ reservedOp "--")
