@@ -412,12 +412,9 @@ testAbs = do
 doing = execute'
 
 ctx = """
-state t {
-  print("hello" + String(i))
-}
-
-for i in [1,2,3] {
-  visit t
+ads = [1,2,3]
+for( i = 0; i < ads.length; i++ ){
+    print(i)
 }
 """
 

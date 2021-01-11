@@ -289,7 +289,10 @@ parseExpr = fix $ \self -> do
     expr <- (parseAbs self)
             <|> (do
                 expr <- parseSimpleExpr self
-                parseBinding self expr <|> pure expr)
+                expr' <- (parseBinding self expr <|> pure expr)
+                P.optional (reservedOp ";")
+                pure expr'
+                )
             <|> parseStmtExpr self
             <|> parseObject self
             <?> "Expression"
@@ -435,8 +438,8 @@ parseStmt exprP
   <|> parseWhile exprP
   <|> parseLater exprP
   <|> parseEvent exprP
-  <|> parseForIn exprP
-  <|> parseForOf exprP
+  -- <|> parseForIn exprP
+  -- <|> parseForOf exprP
   <|> parseFLoop exprP
   <|> (reserved "going" *> (Going <$> expect parseIdentifier))
   <|> (reserved "visit" *> (Visit <$> parseIdentifier))
