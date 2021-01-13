@@ -1,6 +1,8 @@
 module BotScriptParser where
 
 import BotScript
+import Control.Applicative
+import Control.Lazy
 import Data.Array hiding (null)
 import Data.Foldable hiding (null)
 import Data.Function
@@ -14,13 +16,9 @@ import Prelude
 import Text.Parsing.Parser
 import Text.Parsing.Parser.Combinators
 import Text.Parsing.Parser.Expr
-import Text.Parsing.Parser.String (null)
 
-import Control.Lazy
-import Control.Applicative
 import Control.Alt (alt, (<|>))
 import Control.Monad.State (gets, modify_)
-
 import CustomToken (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter, emptyDef)
 import Data.Array as A
 import Data.Either (Either(..))
@@ -36,6 +34,7 @@ import Text.Parsing.Parser as P
 import Text.Parsing.Parser.Combinators as P
 import Text.Parsing.Parser.Expr as P
 import Text.Parsing.Parser.String (anyChar, char, eof, satisfy, oneOf)
+import Text.Parsing.Parser.String (null)
 import Undefined (undefined)
 -- import Text.Parsing.Parser.Token (LanguageDef, TokenParser, GenLanguageDef(..), unGenLanguageDef, makeTokenParser, alphaNum, letter)
 -- import Text.Parsing.Parser.Language (emptyDef)
@@ -348,7 +347,7 @@ parseTimer exprP = do
 
 parseWhile exprP = do
   reserved "while"
-  prd <- expect $ exprP <?> "While Pred"
+  prd <- expect $ (parseSimpleExpr exprP) <?> "While Pred"
   act <- expect $ exprP <?> "While Expr"
   pure $ While prd act
 
