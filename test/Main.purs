@@ -581,15 +581,15 @@ ctx = """
 """
 
 main = do
-  -- doing testLoop
-  -- doing testAjax
-  -- doing testRecursion
-  -- doing testLift
-  -- doing testGoing
-  -- doing testVisit
+  doing testLoop
+  doing testAjax
+  doing testRecursion
+  doing testLift
+  doing testGoing
+  doing testVisit
   doing guessNumber
-  -- doing wolf
-  -- compile wolf
-  -- doing ctx
-  -- doing "0 && print(2)"
-  -- doing "print(2) || print(2)"
+  doing wolf
+  compile wolf
+  doing ctx
+  doing "0 && print(2)"
+  doing "print(2) || print(2)"

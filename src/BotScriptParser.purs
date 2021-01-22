@@ -140,7 +140,7 @@ parseArgs = fix $ \self -> do
   try $ reservedOp "("
   reservedOp ")"
   consume
-  reservedOp "=>"
+  _ <- symbol "=>"
   pure $ []
 
 -- a => body
@@ -149,12 +149,12 @@ parseArgs'' = fix $ \self -> do
   (b /\ v /\ p) <- lookAhead parsePmatch
   if b then do
     _ <- parsePmatch
-    reservedOp "=>"
+    _ <- symbol "=>"
     pure $ [(v /\ p)]
   else
     try (do
      _ <- parsePmatch
-     reservedOp "=>"
+     _ <- symbol "=>"
      pure $ [(v /\ p)])
 
 -- (a) => body
@@ -167,14 +167,14 @@ parseArgs' = fix $ \self -> do
     [(false /\ v /\ p)] -> try (do
       _ <- (parens $ fromFoldable <$>
         parsePmatch `sepEndBy` (reservedOp ","))
-      reservedOp "=>"
+      _ <- symbol "=>"
       pure $ [(v /\ p)]
     )
     _ -> (do
       _ <- (parens $ fromFoldable <$>
         parsePmatch `sepEndBy` (reservedOp ","))
       consume
-      reservedOp "=>"
+      _ <- symbol "=>"
       pure $ map (\(b /\ v /\ p) -> (v /\ p)) args
     )
 
