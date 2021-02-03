@@ -55,11 +55,13 @@ lvalUpdate ms@{env: env} lval val =
             pure $ Env.insert env name val
         (Dot obj mem) -> do
             obj' <- evalExpr ms obj
-            (let _ = updMem obj' mem val in pure env)
+            liftEffect $ updMem obj' mem val
+            pure env
         (Sub obj sub) -> do
             obj' <- evalExpr ms obj
             sub' <- evalExpr ms sub
-            (let _ = updMem obj' sub val in pure env)
+            liftEffect $ updMem obj' sub val
+            pure env
         _ -> pure env
 
 

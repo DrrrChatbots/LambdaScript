@@ -203,11 +203,11 @@ parseBinding exprP expr = do
     rval <- exprP <?> "Binding Expression"
     P.optional (reservedOp ";")
     case op of
-         "+=" -> pure $ Renew lval (Bin "+" lval expr)
-         "-=" -> pure $ Renew lval (Bin "-" lval expr)
-         "*=" -> pure $ Renew lval (Bin "*" lval expr)
-         "/=" -> pure $ Renew lval (Bin "/" lval expr)
-         "%=" -> pure $ Renew lval (Bin "%" lval expr)
+         "+=" -> pure $ Renew lval (Bin "+" lval rval)
+         "-=" -> pure $ Renew lval (Bin "-" lval rval)
+         "*=" -> pure $ Renew lval (Bin "*" lval rval)
+         "/=" -> pure $ Renew lval (Bin "/" lval rval)
+         "%=" -> pure $ Renew lval (Bin "%" lval rval)
          _ -> pure $ Renew lval rval
 
 parseTerm exprP = choice

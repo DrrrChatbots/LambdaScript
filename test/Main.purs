@@ -578,6 +578,15 @@ testAbs = do
 doing = execute'
 
 ctx = """
+a = {k: 3}
+a.val = 1
+c = 1
+b = a.val++
+d = c++;
+console.log(a.val)
+console.log(b)
+console.log(c)
+console.log(d)
 """
 
 main = do
@@ -590,6 +599,7 @@ main = do
   doing guessNumber
   doing wolf
   compile wolf
+  compile ctx
   doing ctx
   doing "0 && print(2)"
   doing "print(2) || print(2)"
