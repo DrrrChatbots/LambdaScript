@@ -69,7 +69,7 @@ exports.setcur = state => () => {
 exports.listen = state => types => args => next => () => {
   exports.events[state] = exports.events[state] || [];
 
-  [user_regex, cont_regex] = padArray(args);
+  [user_regex, cont_regex] = padArray(args, 2, "");
 
   exports.events[state].push([
     types, user_regex, cont_regex, next
