@@ -143,15 +143,10 @@ parseArgs = fix $ \self -> do
 -- a : "" => body
 parseArgs'' = fix $ \self -> do
   (b /\ v /\ p) <- lookAhead parsePmatch
-  if b then do
+  try (do
     _ <- parsePmatch
     _ <- symbol "=>"
-    pure $ [(v /\ p)]
-  else
-    try (do
-     _ <- parsePmatch
-     _ <- symbol "=>"
-     pure $ [(v /\ p)])
+    pure $ [(v /\ p)])
 
 -- (a) => body
 -- (a : "") => body
