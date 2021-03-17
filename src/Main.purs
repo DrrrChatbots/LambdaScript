@@ -49,4 +49,4 @@ execute' ctx = do
     machine <- execute ctx
     log $ "=> " <> stringify_ machine.val
 
-main = log "Welcome to use BotScript"
+main = log "Welcome to use LambdaScript"

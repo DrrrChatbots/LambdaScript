@@ -1182,7 +1182,8 @@ werewolf = (lang) => {
 }"""
 
 -- test = "later (3000); (a, b) => console.log(2)"
-test = "{x: { y : 2 }}"
+-- test = "{x: { y : 2 }}"
+test = "event dm {}"
 -- test = """{ x: "asdf" => 3 }"""
 
 main = do

@@ -1,4 +1,4 @@
-# BotScript
+# LambdaScript
 
 A script language for chatbot, I learn PureScript by making the project.
 

@@ -48,9 +48,9 @@ customStyle = LanguageDef (unGenLanguageDef emptyDef)
                 , identStart      = letter <|> oneOf ['_', '$']
                 , identLetter     = alphaNum <|> oneOf ['_', '$']
                 , reservedNames   =
-                    ["state", "true", "false", "event"
-                    , "later", "going", "if", "else"
-                    , "for", "while", "visit", "timer"
+                    [ "true", "false"
+                    -- , "event" , "later", "going", "visit", "timer"
+                    , "if", "else" , "for", "while"
                     , "in", "of", "new", "delete"
                     -- , "title", "descr" , "print" ,"order"
                     ]
@@ -277,13 +277,13 @@ parseSimpleExpr exprP =
 parseExpr :: ParserT String Identity Expr
 parseExpr = fix $ \self -> do
     expr <- (parseAbs self)
+            <|> (try $ parseStmtExpr self)
             <|> (do
                 expr <- parseSimpleExpr self
                 expr' <- (parseBinding self expr <|> pure expr)
                 P.optional (reservedOp ";")
                 pure expr'
                 )
-            <|> parseStmtExpr self
             <|> parseObject self
             <?> "Expression"
     pure expr
@@ -428,8 +428,8 @@ parseStmt exprP
   <|> parseWhile exprP
   <|> parseLater exprP
   <|> parseEvent exprP
-  -- <|> parseForIn exprP
-  -- <|> parseForOf exprP
+  <|> parseForIn exprP
+  <|> parseForOf exprP
   <|> parseFLoop exprP
   <|> (reserved "going" *> (Going <$> expect parseIdentifier))
   <|> (reserved "visit" *> (Visit <$> parseIdentifier))
