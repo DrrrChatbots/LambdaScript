@@ -458,8 +458,14 @@ testParseStates = do
     (some parseState >>= \states -> pure (true /\ states))
     <|> pure (false /\ [])
 
+parseTopExpr = do
+  maybe <- optionMaybe (lookAhead (reserved "state"))
+  case maybe of
+       Just pattern -> fail "should be state"
+       Nothing -> parseExpr
+
 testParseExprs =
-    (some parseExpr >>= \exprs ->
+    (some parseTopExpr >>= \exprs ->
         pure (true /\ exprs))
     <|> pure (false /\ [])
 

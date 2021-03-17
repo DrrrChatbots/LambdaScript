@@ -1182,23 +1182,27 @@ werewolf = (lang) => {
 }"""
 
 -- test = "later (3000); (a, b) => console.log(2)"
--- test = "{x: { y : 2 }}"
-test = "event dm {}"
+test = "{x: { y : 2 }}"
+-- test = """
+-- state day {}
+-- t = a => "hello"
+-- state night {}
+-- """
 -- test = """{ x: "asdf" => 3 }"""
 
 main = do
-  -- doing testLoop
-  -- doing testAjax
-  -- doing testRecursion
-  -- doing testLift
-  -- doing testGoing
-  -- doing testVisit
-  -- doing guessNumber
-  -- doing wolf
-  -- compile wolf
-  -- compile ctx
-  -- doing ctx
-  -- doing "0 && print(2)"
-  -- doing "print(2) || print(2)"
-  -- compile objctx
+  doing testLoop
+  doing testAjax
+  doing testRecursion
+  doing testLift
+  doing testGoing
+  doing testVisit
+  doing guessNumber
+  doing wolf
+  compile wolf
+  compile ctx
+  doing ctx
+  doing "0 && print(2)"
+  doing "print(2) || print(2)"
+  compile objctx
   compile test
