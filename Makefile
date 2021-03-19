@@ -13,4 +13,4 @@ repl:
 	@spago repl
 
 app:
-	@spago bundle-app --to lambdascript.js
+	@spago bundle-app --to LambdaScript.js
