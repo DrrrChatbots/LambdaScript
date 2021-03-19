@@ -1,44 +1,39 @@
 module BotScriptVM where
 
 import BotScript
-import Control.Lazy
-import Data.Array
-import Data.Foldable
-import Data.Functor
-import Data.Maybe
-import Data.Traversable
-import Data.Tuple
-import Data.Tuple.Nested
-import DrrrBot
-import Prelude
 
-import BotScriptEnv (Env(..))
-import BotScriptEnv as Env
-import Control.Comonad.Env (env)
-import Control.Monad.Rec.Class (Step(..), tailRec, tailRecM, tailRecM2, untilJust, whileJust)
-
+import BotScriptEnv (Env(..), insert, pushEnv, popEnv, assocVar, topEnv)
+import Control.Monad.Rec.Class (Step(..), tailRecM)
+import Data.Array (unzip, zip, zipWith)
 import Data.Array as A
 import Data.List (List(..), (:))
-import Data.Time.Duration (Milliseconds(..))
+import Data.Maybe (Maybe(..))
+import Data.Traversable (find, foldr, traverse)
+import Data.Tuple (fst, snd)
+import Data.Tuple.Nested ((/\))
+import DrrrBot (listen)
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Console (log, logShow)
-import Foreign.NullOrUndefined (null)
-import Foreign.Object as FO
+import Prelude (Unit, bind, discard, map, pure, show, ($), (<$>), (<<<), (<>), (==))
 import Undefined (undefined)
 
 -- write state checker
 foreign import none :: forall a. a -> Term
 foreign import bool :: forall a. Term -> a -> a -> a
-foreign import setTimer :: forall a. String -> Term -> Term -> Effect Unit
-foreign import clearTimer :: String -> Effect Unit
-foreign import clearAllTimer :: Effect Unit
+
+-- foreign import setTimer :: forall a. String -> Term -> Term -> Effect Unit
+-- foreign import clearTimer :: String -> Effect Unit
+-- foreign import clearAllTimer :: Effect Unit
+
+foreign import newObject :: forall a. a -> Term
+foreign import dropEvent :: Term -> String -> Effect Unit
+foreign import dropTimer :: Term -> String -> Effect Unit
+foreign import hangTimer :: Term -> String -> Term -> Term -> Effect Unit
+
 foreign import toNumber :: Term -> Number
 foreign import toBoolean :: Term -> Boolean
 foreign import stringify :: forall a. a -> String
-
-runExpr expr machine = tailRecM run machine'
-    where machine' = machine { exprs = ((expr : Nil) : Nil) }
 
 foreign import evalBin :: String -> Term -> Term -> Term
 foreign import evalUna :: String -> Term -> Term
@@ -49,10 +44,15 @@ foreign import toVaArgFunction :: forall a. a -> Term
 foreign import new :: Term -> (Array Term) -> Term
 foreign import delete :: Term -> Term -> Term
 
+runExpr :: Expr -> MachineState -> Effect MachineState
+runExpr expr machine = tailRecM run machine'
+    where machine' = machine { exprs = ((expr : Nil) : Nil) }
+
+lvalUpdate :: MachineState -> Expr -> Term -> Effect Env
 lvalUpdate ms@{env: env} lval val =
     case lval of
         (Var name) ->
-            pure $ Env.insert env name val
+            pure $ insert env name val
         (Dot obj mem) -> do
             obj' <- evalExpr ms obj
             liftEffect $ updMem obj' mem val
@@ -64,14 +64,14 @@ lvalUpdate ms@{env: env} lval val =
             pure env
         _ -> pure env
 
-
+liftAbs :: Expr -> Expr
 liftAbs abs@(Abs pars expr) = abs
 liftAbs expr = Abs [] expr
 
-bind'event'vars :: Array String -> Array String -> Env.Env -> Env.Env
+bind'event'vars :: Array String -> Array String -> Env -> Env
 bind'event'vars syms args enviorn =
   foldr (\(sym /\ arg) acc ->
-    Env.insert acc sym (toTerm "" arg)) enviorn (zip syms args)
+    insert acc sym (toTerm "" arg)) enviorn (zip syms args)
     -- TODO: consider valueOf
 
 make'event'action ::
@@ -80,7 +80,7 @@ make'event'action ::
 
 make'event'action syms expr machine@{env: env} =
     toVaArgFunction (\args ->
-    let env' = bind'event'vars (A.(:) "args" syms) args (Env.pushEnv env)
+    let env' = bind'event'vars (A.(:) "args" syms) args (pushEnv env)
         machine' = machine { exprs = ((expr : Nil) : Nil)
                            , env = env'
                            } in do
@@ -90,28 +90,40 @@ make'event'action syms expr machine@{env: env} =
 
 type MachineState = { val :: Term
                     , cur :: String
-                    , env :: Env.Env
+                    , env :: Env
                     , exprs :: List (List Expr)
                     , states :: Array BotState
+                    , events :: Term
+                    , timers :: Term
                     }
 
-fms = { val: toTerm "" ""
-      , cur: "hello"
-      , env: Env.Top
-      , exprs: Nil
-      , states : []
-      }
+rawMachine :: forall a. a -> MachineState
+rawMachine x = { val: none undefined
+               , cur: ""
+               , env: pushEnv Top
+               , exprs: (Nil : Nil)
+               , states: []
+               , events: newObject undefined
+               , timers: newObject undefined
+               }
 
--- evalExpr :: MachineState -> Expr -> Term
+wrapMachine :: MachineState -> MachineState
+wrapMachine machine = let
+  _ = insert machine.env "__machine__" (toTerm "Object" machine) in
+  machine
+
+evalExpr :: MachineState -> Expr -> Effect Term
 evalExpr machine expr = do
     x <- tailRecM run $ machine { exprs = ((expr : Nil) : Nil) }
     pure x.val
 
+evalExprLiftedStmt :: MachineState -> Expr -> Effect Term
 evalExprLiftedStmt machine expr =
     evalExpr machine (case expr of
                      g@(Group _) -> liftAbs expr
                      _ -> expr)
 
+detailShow :: Expr -> String
 detailShow (Var name) = name
 detailShow (Dot obj attr) = detailShow obj <> "." <> attr
 detailShow (Sub obj attr) = detailShow obj <> "[" <> detailShow attr <> "]"
@@ -129,7 +141,7 @@ run machine@{ exprs: (Cons Nil Nil) } = do
 
 run machine@{ exprs: (Cons Nil rst) } =
     pure (Loop $ machine { exprs = rst , env = pop'env})
-    where pop'env = Env.popEnv machine.env
+    where pop'env = popEnv machine.env
 
 run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
 
@@ -245,11 +257,11 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
 
         (Var name) ->
             -- need handle index
-            case Env.assocVar name machine.env of
+            case assocVar name machine.env of
                 Just term -> pure <<< Loop $ machine' { val = term }
                 Nothing ->
                     let none' = none undefined
-                        _ = Env.insert machine.env name none'
+                        _ = insert machine.env name none'
                      in pure <<< Loop $ machine' { val = none' }
 
         (Obj pairs) ->
@@ -269,9 +281,11 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
             case find (\(BotState name _)
                        -> name == dest) machine.states of
               Just (BotState _ acts') ->
-                  let top'env = Env.topEnv env in do
-                      liftEffect $ setcur dest
-                      liftEffect $ clearTimer machine.cur
+                  let top'env = topEnv env in do
+                      -- liftEffect $ setcur dest -- remove
+                      liftEffect $ dropEvent machine.events machine.cur
+                      -- liftEffect $ clearTimer machine.cur -- remove
+                      liftEffect $ dropTimer machine.timers machine.cur
                       pure (Loop $ machine { cur = dest
                                            , env = top'env -- will not return, so clear env (static scoping)
                                            , exprs = ((acts' : Nil) : Nil)})
@@ -284,8 +298,10 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
             case find (\(BotState name _)
                        -> name == stat) machine.states of
               Just (BotState _ acts') -> do
-                      liftEffect $ setcur stat
-                      liftEffect $ clearTimer machine.cur
+                      -- liftEffect $ setcur stat -- remove
+                      liftEffect $ dropEvent machine.events machine.cur
+                      -- liftEffect $ clearTimer machine.cur -- remove
+                      liftEffect $ dropTimer machine.timers machine.cur
                       -- because will return , so no clear env (dynamic scoping)
                       pure (Loop $ machine { exprs = ((acts' : (Reset machine.cur) : exprs) : exprss) })
               Nothing -> do
@@ -294,11 +310,12 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                   pure (Done machine)
 
         (Reset stat) -> do
-            liftEffect $ setcur stat
+            -- liftEffect $ setcur stat -- remove
+            liftEffect $ dropEvent machine.events machine.cur
             pure $ Loop machine'
 
         (Group actions) ->
-            let new'env = (Env.pushEnv env) in
+            let new'env = (pushEnv env) in
             pure (Loop $ machine { env = new'env
                                  , val = none undefined
                                  , exprs = (actions : exprs : exprss)
@@ -320,7 +337,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
            val' <- evalExprLiftedStmt machine val
            case lval of
                 (Var name) ->
-                   (let _ = Env.insert env name val' in do
+                   (let _ = insert env name val' in do
                        pure <<< Loop $ machine' {val = val'})
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
@@ -349,32 +366,32 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
         (Timer prd expr) -> do
            expr' <- evalExpr machine $ liftAbs expr
            prd' <- evalExpr machine prd
-           liftEffect $ setTimer machine.cur prd' expr'
+           -- liftEffect $ setTimer machine.cur prd' expr' -- remove
+           liftEffect $ hangTimer machine.timers machine.cur prd' expr'
            pure <<< Loop $ machine' { val = none undefined }
 
         (Later prd expr) -> do
            val <- evalExpr machine $ (App (Var "setTimeout") [liftAbs expr, prd])
            pure <<< Loop $ machine' { val = val }
 
-        action -> do
-            case action of
-               -- builtins
-               _ -> liftEffect $
-                   log $ "unhandled expression: " <> show expr'cur
+        -- action -> do
+        --     case action of
+        --        -- builtins
+        --        _ -> liftEffect $
+        --            log $ "unhandled expression: " <> show expr'cur
 
-            pure <<< Loop $ machine' { val = none undefined }
+        --     pure <<< Loop $ machine' { val = none undefined }
 
+runVM :: BotScript -> Effect MachineState
+runVM (BotScript exprs states) =
+    -- clearAllTimer -- consider how to remove
+    -- clearAllEvent -- remove
+    let m = rawMachine undefined in do
+    tailRecM run (wrapMachine (m { exprs = (exprs : Nil)
+                                , states = states
+                                }))
 
-runVM (BotScript exprs states) = do
-    clearAllTimer
-    clearAllEvent
-    tailRecM run { val: none undefined
-                 , cur: ""
-                 , env: Env.pushEnv Env.Top
-                 , exprs: (exprs : Nil)
-                 , states: states
-                 }
-
+runStep :: MachineState -> BotScript -> Effect MachineState
 runStep machine (BotScript exprs states) = do
     tailRecM run (machine { val = none undefined
                           , exprs = (exprs : Nil)

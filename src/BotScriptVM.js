@@ -1,4 +1,6 @@
 
+exports.newObject = () => ({})
+
 unit = () => false
 //unit = () => Object()
 
@@ -108,26 +110,42 @@ exports.bool = pred => thn => els => {
   return pred.valueOf() ? thn : els;
 }
 
-exports.timers = {}
-exports.setTimer = state => prd => act => () => {
-  exports.timers[state] = exports.timers[state] || [];
-  exports.timers[state].push(setInterval(act, prd));
+//exports.timers = {}
+//exports.setTimer = state => prd => act => () => {
+//  exports.timers[state] = exports.timers[state] || [];
+//  exports.timers[state].push(setInterval(act, prd));
+//}
+
+//exports.clearAllTimer = () => {
+//  for(s in exports.timers){
+//    for(id of exports.timers[s]){
+//      clearInterval(id);
+//    }
+//  }
+//  exports.timers = {};
+//}
+
+//exports.clearTimer = state => () => {
+//  if(exports.timers[state])
+//    for(id of exports.timers[state])
+//      clearInterval(id);
+//  exports.timers[state] = [];
+//}
+
+exports.dropEvent = events => state => () => {
+  if(state) events[state] = [];
 }
 
-exports.clearAllTimer = () => {
-  for(s in exports.timers){
-    for(id of exports.timers[s]){
+exports.dropTimer = timers => state => () => {
+  if(timers[state])
+    for(id of timers[state])
       clearInterval(id);
-    }
-  }
-  exports.timers = {};
+  timers[state] = [];
 }
 
-exports.clearTimer = state => () => {
-  if(exports.timers[state])
-    for(id of exports.timers[state])
-      clearInterval(id);
-  exports.timers[state] = [];
+exports.hangTimer = timers => state => prd => act => () => {
+  timers[state] = timers[state] || [];
+  timers[state].push(setInterval(act, prd));
 }
 
 exports.toNumber = Number

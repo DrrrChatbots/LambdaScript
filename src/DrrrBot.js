@@ -56,11 +56,13 @@ function padArray(array, length, fill){
     array;
 }
 
+// ignore
 exports.clearAllEvent = () => {
   exports.cur = "";
   exports.events = {};
 }
 
+// done
 exports.setcur = state => () => {
   if(exports.cur) exports.events[exports.cur] = [];
   exports.cur = state;
