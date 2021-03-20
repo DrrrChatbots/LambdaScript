@@ -7,12 +7,12 @@ import BotScriptEnv (Env(..))
 import BotScriptParser (parse, parseScript)
 import BotScriptVM (MachineState, none, runVM, newObject)
 import Data.Either (Either(..))
+import Data.Identity (Identity)
 import Data.List (List(..))
 import Effect (Effect)
 import Effect.Console (log, logShow)
-import Undefined (undefined)
-import Data.Identity (Identity)
 import Text.Parsing.Parser (ParserT)
+import Undefined (undefined)
 
 
 testLoop :: String
@@ -1210,12 +1210,25 @@ test = "{x: { y : 2 }}"
 
 testMachine :: String
 testMachine = """
-state dm { }
-console.log(__machine__)
+//a = 1
+//console.log(__machine__)
+//announce = (msg) => {
+//  announcement = msg
+//  print(msg)
+//}
+//announce("hello")
+c = 4
+me = (str) => "/me" + str
+a = me("hello")
+b = 3
+//if true then {
+//  console.log("yes")
+//}
 """
 
 main :: Effect Unit
 main = do
+  compile testMachine
   doing testMachine
   -- doing testLoop
   -- doing testAjax

@@ -17,6 +17,8 @@ type Term = (Record (toString :: Foreign -> String))
 foreign import toTerm :: forall a. String -> a -> Term
 foreign import stringify_ :: forall a. a -> String
 
+cast = toTerm ""
+
 type Args = Array (String /\ Expr)
 
 data Expr

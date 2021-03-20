@@ -1,13 +1,13 @@
 module Main where
 
 import BotScript (stringify_)
-import BotScriptEnv (Env(..), pushEnv)
+import BotScriptEnv (Env(..))
 import BotScriptParser (parse, parseScript)
 import BotScriptVM (
   MachineState, newObject, none,
   runStep, runVM, rawMachine, wrapMachine)
 import Data.Either (Either(..))
-import Data.List (List(..), (:))
+import Data.List (List(..))
 import Effect (Effect)
 import Effect.Console (log, logShow)
 import Prelude (Unit, bind, discard, pure, show, ($), (<>))
