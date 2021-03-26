@@ -213,23 +213,22 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
 
         (Una op val) -> do
            val' <- evalExpr machine val
-           (let val'' = evalUna op val'
-                loop' = pure <<< Loop $ setValExprs machine val' exprs'
-                loop'' = pure <<< Loop $ setValExprs machine val'' exprs' in
+           (let val'' = evalUna op val' in
                 case op of
                      "_++" -> do
                          _ <- lvalUpdate machine val val''
-                         loop'
+                         pure <<< Loop $ setValExprs machine val' exprs'
                      "_--" -> do
                          _ <- lvalUpdate machine val val''
-                         loop'
+                         pure <<< Loop $ setValExprs machine val' exprs'
                      "++_" -> do
                          _ <- lvalUpdate machine val val''
-                         loop''
+                         pure <<< Loop $ setValExprs machine val'' exprs'
                      "--_" -> do
                          _ <- lvalUpdate machine val val''
-                         loop''
-                     _ -> loop'')
+                         pure <<< Loop $ setValExprs machine val'' exprs'
+                     _ -> do
+                        pure <<< Loop $ setValExprs machine val'' exprs')
 
         (Bin "||" lv rv) -> do
            lv' <- evalExpr machine lv
