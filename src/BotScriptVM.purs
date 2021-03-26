@@ -285,7 +285,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                        -> name == stat) machine.states of
               Just (BotState _ acts') -> do
                       liftEffect $ setcur stat
-                      liftEffect $ clearTimer machine.cur
+                      -- liftEffect $ clearTimer machine.cur
                       -- because will return , so no clear env (dynamic scoping)
                       pure (Loop $ machine { exprs = ((acts' : (Reset machine.cur) : exprs) : exprss) })
               Nothing -> do
