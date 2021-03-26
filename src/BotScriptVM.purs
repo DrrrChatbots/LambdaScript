@@ -2,14 +2,15 @@ module BotScriptVM where
 
 import BotScript
 
-import BotScriptEnv (Env(..), insert, pushEnv, popEnv, assocVar, topEnv)
+import BotScriptEnv (Env(..), pushEnv, popEnv, assocVar, topBase
+                    , changeBase, insert, update)
 import Control.Monad.Rec.Class (Step(..), tailRecM)
 import Data.Array (unzip, zip, zipWith)
 import Data.Array as A
 import Data.List (List(..), (:))
 import Data.Maybe (Maybe(..))
 import Data.Traversable (find, foldr, traverse)
-import Data.Tuple (fst, snd)
+import Data.Tuple (Tuple, fst, snd)
 import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Class (liftEffect)
@@ -65,10 +66,6 @@ setExprs machine exprs = setMachine machine ["exprs"] [cast exprs]
 setValExprs :: MachineState -> Term -> List (List Expr) -> MachineState
 setValExprs machine val exprs = setMachine machine ["val", "exprs"] [val, cast exprs]
 
--- setValExprsEnv :: MachineState -> Term -> List (List Expr) -> Env -> MachineState
--- setValExprsEnv machine val exprs env =
---   setMachine machine ["val", "exprs", "env"] [val, cast exprs, cast env]
-
 rawMachine :: forall a. a -> MachineState
 rawMachine x = { val: none undefined
                , cur: ""
@@ -81,8 +78,21 @@ rawMachine x = { val: none undefined
 
 wrapMachine :: MachineState -> MachineState
 wrapMachine machine = let
-  _ = insert machine.env "__machine__" (cast machine) in
-  machine
+  _ = insert machine.env "__this__" (cast machine)
+  env' = pushEnv machine.env
+  _ = insert env' "__main__" (cast machine) in
+  setMachine machine ["env"] [cast env']
+
+cloneMachine :: MachineState -> MachineState
+cloneMachine parent = let
+  machine = rawMachine undefined
+  _ = insert machine.env "__this__" (cast machine)
+  env' = changeBase parent.env machine.env in
+  setMachine machine
+    ["val", "cur", "env", "exprs", "states", "events", "timers"]
+    [cast parent.val, cast parent.cur, cast env'
+    , cast parent.exprs, cast parent.states
+    , cast parent.events, cast parent.timers]
 
 evalExpr :: MachineState -> Expr -> Effect Term
 evalExpr machine expr = do
@@ -125,15 +135,13 @@ make'event'action ::
     Expr -> MachineState -> Term
 
 make'event'action syms expr machine =
+  let machine' = cloneMachine machine in
     toVaArgFunction (\args ->
-    let env = getEnv machine
-        env' = bind'event'vars (A.(:) "args" syms) args (pushEnv env)
-        _ = setMachine machine ["exprs", "env"]
+    let env' = bind'event'vars (A.(:) "args" syms) args (pushEnv machine'.env)
+        _ = setMachine machine' ["exprs", "env"] -- use cloneMachine here TODO
               [cast $ (expr : Nil) : Nil, cast env'] in do
-        machine' <- tailRecM run machine
-        (let _ = setMachine machine' ["env"] [cast env] in
-          -- TODO adjust env
-          pure machine'.val)
+        m <- tailRecM run machine'
+        pure m.val
     )
 
 evalExprLiftedStmt :: MachineState -> Expr -> Effect Term
@@ -148,9 +156,11 @@ detailShow (Dot obj attr) = detailShow obj <> "." <> attr
 detailShow (Sub obj attr) = detailShow obj <> "[" <> detailShow attr <> "]"
 detailShow obj = show obj
 
+unpackExprs :: List (List Expr) -> Tuple Expr (Tuple (List Expr) (List (List Expr)))
 unpackExprs (Cons (Cons expr exprs) exprss) = (expr /\ exprs /\ exprss)
 unpackExprs _ = ((Trm (toTerm "" "wrong")) /\ Nil /\ (Cons Nil Nil))
 
+getEnv :: MachineState -> Env
 getEnv machine = machine.env
 
 run :: MachineState -> Effect (Step MachineState MachineState)
@@ -317,7 +327,8 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
             case find (\(BotState name _)
                        -> name == dest) machine.states of
               Just (BotState _ acts') ->
-                  let top'env = topEnv env in do
+                  let base'env = topBase  env
+                      _ = update base'env "__main__" (cast machine) in do
                       -- liftEffect $ setcur dest -- remove
                       liftEffect $ dropEvent machine.events machine.cur
                       -- liftEffect $ clearTimer machine.cur -- remove
@@ -325,7 +336,7 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
                       -- will not return, so clear env (static scoping)
                       pure (Loop $ setMachine machine
                            ["cur", "env", "exprs"]
-                           [cast dest, cast top'env, cast $ (acts' : Nil) : Nil])
+                           [cast dest, cast base'env, cast $ (acts' : Nil) : Nil])
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> dest <> "> not found"
@@ -419,13 +430,9 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
            val <- evalExpr machine $ (App (Var "setTimeout") [liftAbs expr, prd])
            pure <<< Loop $ setValExprs machine val exprs'
 
-        action -> do
-            case action of
-               -- builtins
-               _ -> liftEffect $
-                   log $ "unhandled expression: " <> show expr'cur
-
-            pure <<< Loop $ setValExprs machine (none undefined) exprs'
+        _ -> do
+           liftEffect $ log $ "unhandled expression: " <> show expr'cur
+           pure <<< Loop $ setValExprs machine (none undefined) exprs'
 
 runVM :: BotScript -> Effect MachineState
 runVM (BotScript exprs states) =

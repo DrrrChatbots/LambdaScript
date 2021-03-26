@@ -1210,20 +1210,22 @@ test = "{x: { y : 2 }}"
 
 testMachine :: String
 testMachine = """
-//a = 1
-//console.log(__machine__)
-//announce = (msg) => {
-//  announcement = msg
-//  print(msg)
-//}
-//announce("hello")
-c = 4
-me = (str) => "/me" + str
-a = me("hello")
-b = 3
-//if true then {
-//  console.log("yes")
-//}
+
+k = a => a + 1
+names = []
+f = () => {
+  if true then {
+    console.log(__this__.env.value0.root.value0.root)
+    //console.log(__this__.env.value0.root.value0.root.value0.root)
+    console.log(k(3))
+    console.log(names)
+  }
+  console.log(names)
+}
+
+console.log(names)
+f()
+console.log(names)
 """
 
 main :: Effect Unit
