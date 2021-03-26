@@ -346,9 +346,9 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
                        -> name == stat) machine.states of
               Just (BotState _ acts') -> do
                       -- liftEffect $ setcur stat -- remove
-                      liftEffect $ dropEvent machine.events machine.cur
+                      -- liftEffect $ dropEvent machine.events machine.cur
                       -- liftEffect $ clearTimer machine.cur -- remove
-                      liftEffect $ dropTimer machine.timers machine.cur
+                      -- liftEffect $ dropTimer machine.timers machine.cur
                       -- because will return , so no clear env (dynamic scoping)
                       pure (Loop $ setExprs machine
                            ((acts' : (Reset machine.cur) : exprs) : exprss))
@@ -359,7 +359,7 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
 
         (Reset stat) -> do
             -- liftEffect $ setcur stat -- remove
-            liftEffect $ dropEvent machine.events machine.cur
+            -- liftEffect $ dropEvent machine.events machine.cur
             pure $ Loop (setExprs machine exprs')
 
         (Group actions) ->
