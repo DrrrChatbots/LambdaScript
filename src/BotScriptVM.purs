@@ -2,8 +2,7 @@ module BotScriptVM where
 
 import BotScript
 
-import BotScriptEnv (Env(..), pushEnv, popEnv, assocVar, topBase
-                    , changeBase, insert, update)
+import BotScriptEnv (Env(..), assocVar, changeBase, insert, popEnv, pushEnv, topBase, update)
 import Control.Monad.Rec.Class (Step(..), tailRecM)
 import Data.Array (unzip, zip, zipWith)
 import Data.Array as A

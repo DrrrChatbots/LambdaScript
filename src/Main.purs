@@ -1,13 +1,14 @@
 module Main where
 
-import BotScript (stringify_)
-import BotScriptEnv (Env(..))
+import BotScript (stringify_, Term)
+import BotScriptEnv (Env(..), assocVar)
 import BotScriptParser (parse, parseScript)
 import BotScriptVM (
   MachineState, newObject, none,
   runStep, runVM, rawMachine, wrapMachine)
 import Data.Either (Either(..))
 import Data.List (List(..))
+import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Console (log, logShow)
 import Prelude (Unit, bind, discard, pure, show, ($), (<>))
@@ -15,6 +16,12 @@ import Undefined (undefined)
 
 newMachine :: forall a. a -> MachineState
 newMachine x = wrapMachine (rawMachine x)
+
+getMain :: MachineState -> Term
+getMain machine =
+  case assocVar "__main__" machine.env of
+       Just term -> term
+       Nothing -> undefined
 
 execute :: String -> Effect MachineState
 execute ctx = case parse parseScript ctx of
