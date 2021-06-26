@@ -6,14 +6,31 @@ import BotScriptParser
 import BotScriptVM
 import Data.Either
 import Prelude
+import Text.Parsing.Parser.Combinators
 
+import Control.Alt ((<|>))
 import Data.Array.ST.Iterator (next)
 import Data.List (List(..))
 import Effect (Effect)
 import Effect.Console (log, logShow)
 import Undefined (undefined)
 
-testLoop = """
+validForL0 = """for(i = 0; i < 10; i++) print(i)"""
+validForL1 = """for (i = 0; i < 10; i++) print(i)"""
+validForL2 = """for i = 0; i < 10; i++ print(i)"""
+validForIn0 = """for(i in [1,2,3]) print(i);"""
+validForIn1 = """for (i in [1,2,3]) print(i);"""
+validForOf0 = """for(i of [1,2,3]) print(i);"""
+validForOf1 = """for (i of [1,2,3]) print(i);"""
+errorForIn0 = """for (i in ) print(i);"""
+errorForIn1 = """for (1 in [1]) print(i);"""
+errorForOf0 = """for (i of ) print(i);"""
+errorForOf1 = """for (1 of [1]) print(i);"""
+
+testL = """
+for (i of [1,2,3]) print(i);
+for(i = 0; i < 10; i++) print(i)
+
 for i = 0
     i < 10
     i++
@@ -24,8 +41,16 @@ while(j < 3){
     print(j);
     j++;
 }
-for(i of [1,2,3,4]) print(i);
+
+j = 0
+while j < 3 {
+    print(j);
+    j++;
+}
+
+for i of [1,2,3,4] print(i);
 for(j in {tom: 1, allen: 2}) print(j);
+for j in {tom: 1, allen: 2} print(j);
 """
 
 testAjax = """
@@ -35,8 +60,6 @@ fetch("https://v1.hitokoto.cn")
 	print(result.hitokoto);
 });
 """
-
-
 
 testRecursion = """
 f = (x) =>
@@ -1182,7 +1205,13 @@ werewolf = (lang) => {
 }"""
 
 -- test = "later (3000); (a, b) => console.log(2)"
-test = "{x: { y : 2 }}"
+test = """
+k = {}
+a = "a"
+k[a] = 0
+k[a]++
+console.log(k)
+"""
 -- test = """
 -- state day {}
 -- t = a => "hello"
@@ -1190,19 +1219,44 @@ test = "{x: { y : 2 }}"
 -- """
 -- test = """{ x: "asdf" => 3 }"""
 
+
+testString = "for (i = 0; i < 10; i++) print(i)"
+testParser parser ctx = case parse parser ctx of
+    Right script -> logShow script
+    Left err -> log ("error: " <> show err)
+
 main = do
-  doing testLoop
-  doing testAjax
-  doing testRecursion
-  doing testLift
-  doing testGoing
-  doing testVisit
-  doing guessNumber
-  doing wolf
+  -- testParser (parseForIn parseExpr) validForIn0
+  -- testParser (parseForOf parseExpr) validForOf0
+  -- testParser (parseFLoop parseExpr) validForL0
+  -- testParser (parseStmt parseExpr) validForL0
+  -- testParser ((try (parseForOf parseExpr))
+  --            <|> parseFLoop parseExpr) validForL0
+  -- testParser (parseStmtExpr parseExpr) validForL0
+  -- testParser (parseSimpleExpr parseExpr) validForL0
+  -- testParser (parseExpr) validForL0
+  compile validForL0
+  compile validForL1
+  compile validForL2
+  compile validForOf0
+  compile validForOf1
+  compile validForIn0
+  compile validForIn1
+  compile testL
+  compile testAjax
+  compile testRecursion
+  compile testLift
+  compile testGoing
+  compile testVisit
+  compile guessNumber
   compile wolf
   compile ctx
-  doing ctx
-  doing "0 && print(2)"
-  doing "print(2) || print(2)"
+  compile "0 && print(2)"
+  compile "print(2) || print(2)"
   compile objctx
   compile test
+  log "======= error below ======"
+  compile errorForIn0
+  compile errorForIn1
+  compile errorForOf0
+  compile errorForOf1

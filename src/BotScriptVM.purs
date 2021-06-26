@@ -60,7 +60,7 @@ lvalUpdate ms@{env: env} lval val =
         (Sub obj sub) -> do
             obj' <- evalExpr ms obj
             sub' <- evalExpr ms sub
-            liftEffect $ updMem obj' sub val
+            liftEffect $ updMem obj' sub' val
             pure env
         _ -> pure env
 
