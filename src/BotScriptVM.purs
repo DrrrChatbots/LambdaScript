@@ -52,7 +52,7 @@ foreign import delete :: Term -> Term -> Term
 lvalUpdate ms@{env: env} lval val =
     case lval of
         (Var name) ->
-            pure $ Env.insert env name val
+            pure $ Env.save env name val
         (Dot obj mem) -> do
             obj' <- evalExpr ms obj
             liftEffect $ updMem obj' mem val
@@ -71,7 +71,8 @@ liftAbs expr = Abs [] expr
 bind'event'vars :: Array String -> Array String -> Env.Env -> Env.Env
 bind'event'vars syms args enviorn =
   foldr (\(sym /\ arg) acc ->
-    Env.insert acc sym (toTerm "" arg)) enviorn (zip syms args)
+    Env.insert acc sym (toTerm "" arg))
+    enviorn (zip syms args)
     -- TODO: consider valueOf
 
 make'event'action ::
@@ -249,7 +250,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
                 Just term -> pure <<< Loop $ machine' { val = term }
                 Nothing ->
                     let none' = none undefined
-                        _ = Env.insert machine.env name none'
+                        _ = Env.save machine.env name none'
                      in pure <<< Loop $ machine' { val = none' }
 
         (Obj pairs) ->
@@ -320,7 +321,7 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
            val' <- evalExprLiftedStmt machine val
            case lval of
                 (Var name) ->
-                   (let _ = Env.insert env name val' in do
+                   (let _ = Env.save env name val' in do
                        pure <<< Loop $ machine' {val = val'})
                 (Dot obj mem) -> do
                    obj' <- evalExpr machine obj
