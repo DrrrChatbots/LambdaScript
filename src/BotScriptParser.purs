@@ -286,7 +286,11 @@ parseExpr = (fix $ \self -> do
                 P.optional (reservedOp ";")
                 pure expr'
                 )
-            <|> parseObject self
+            <|> (do
+                expr <- parseObject self
+                P.optional (reservedOp ";")
+                pure expr
+                )
     pure expr) <?> "Expression"
 
 -- parseKey :: ParserT String m String
