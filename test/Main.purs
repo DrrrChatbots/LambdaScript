@@ -32,6 +32,7 @@ errorForOf1 = """for (1 of [1]) print(i);"""
 testL = """
 for (i of [1,2,3]) print(i);
 for(i = 0; i < 10; i++) print(i)
+"""
 
 
 testLoop :: String
