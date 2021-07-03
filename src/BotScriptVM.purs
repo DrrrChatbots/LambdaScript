@@ -108,7 +108,7 @@ lvalUpdate :: MachineState -> Expr -> Term -> Effect Env
 lvalUpdate ms@{env: env} lval val =
     case lval of
         (Var name) ->
-            pure $ insert env name val
+            pure $ Env.save env name val
         (Dot obj mem) -> do
             obj' <- evalExpr ms obj
             liftEffect $ updMem obj' mem val
@@ -116,7 +116,7 @@ lvalUpdate ms@{env: env} lval val =
         (Sub obj sub) -> do
             obj' <- evalExpr ms obj
             sub' <- evalExpr ms sub
-            liftEffect $ updMem obj' sub val
+            liftEffect $ updMem obj' sub' val
             pure env
         _ -> pure env
 
@@ -127,7 +127,7 @@ liftAbs expr = Abs [] expr
 bind'event'vars :: Array String -> Array String -> Env -> Env
 bind'event'vars syms args enviorn =
   foldr (\(sym /\ arg) acc ->
-    insert acc sym (cast arg)) enviorn (zip syms args)
+    Env.insert acc sym (cast arg)) enviorn (zip syms args)
     -- TODO: consider valueOf
 
 make'event'action ::
@@ -306,7 +306,7 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
                 Just term -> pure <<< Loop $ setValExprs machine term exprs'
                 Nothing ->
                     let none' = none undefined
-                        _ = insert env name none'
+                        _ = Env.save env name none'
                      in pure <<< Loop $ setValExprs machine none' exprs'
 
         (Obj pairs) ->
@@ -388,7 +388,7 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
            case lval of
                 (Var name) -> do
                    val' <- evalExprLiftedStmt machine val
-                   (let _ = insert env name val' in do
+                   (let _ = Env.save env name val' in do
                        pure <<< Loop $ setValExprs machine val' exprs')
                 (Dot obj mem) -> do
                    val' <- evalExprLiftedStmt machine val
