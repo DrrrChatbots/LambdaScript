@@ -11,6 +11,7 @@ import Data.Identity
 import Data.Int
 import Data.Maybe
 import Data.String hiding (null)
+import Data.Tuple (Tuple)
 import Data.Tuple.Nested
 import Prelude hiding (when,between)
 import Text.Parsing.Parser
@@ -463,11 +464,13 @@ parseTopExpr = do
        Just pattern -> fail "should be state"
        Nothing -> parseExpr
 
+testParseExprs :: ParserT String Identity (Tuple Boolean (Array Expr))
 testParseExprs =
     (some parseTopExpr >>= \exprs ->
         pure (true /\ exprs))
     <|> pure (false /\ [])
 
+parseScript' :: ParserT String Identity (Tuple (Array BotState) (Array Expr))
 parseScript' = do
         (sr /\ states) <- testParseStates
         (ar /\ exprs) <- testParseExprs
@@ -479,6 +482,7 @@ anyToken = do
   chars <- many (satisfy \c -> (c /= ' '))
   pure $ SCU.fromCharArray chars
 
+parseScript :: ParserT String Identity BotScript
 parseScript = do
     whiteSpace
     xs <- many parseScript'

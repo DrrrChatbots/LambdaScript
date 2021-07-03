@@ -1,18 +1,20 @@
 module Test.Main where
 
-import BotScript
-import BotScriptEnv
-import BotScriptParser
-import BotScriptVM
-import Data.Either
 import Prelude
 import Text.Parsing.Parser.Combinators
 
 import Control.Alt ((<|>))
 import Data.Array.ST.Iterator (next)
+import BotScript (stringify_)
+import BotScriptEnv (Env(..))
+import BotScriptParser (parse, parseScript)
+import BotScriptVM (MachineState, none, runVM, newObject)
+import Data.Either (Either(..))
+import Data.Identity (Identity)
 import Data.List (List(..))
 import Effect (Effect)
 import Effect.Console (log, logShow)
+import Text.Parsing.Parser (ParserT)
 import Undefined (undefined)
 
 validForL0 = """for(i = 0; i < 10; i++) print(i)"""
@@ -31,6 +33,9 @@ testL = """
 for (i of [1,2,3]) print(i);
 for(i = 0; i < 10; i++) print(i)
 
+
+testLoop :: String
+testLoop = """
 for i = 0
     i < 10
     i++
@@ -53,6 +58,7 @@ for(j in {tom: 1, allen: 2}) print(j);
 for j in {tom: 1, allen: 2} print(j);
 """
 
+testAjax :: String
 testAjax = """
 fetch("https://v1.hitokoto.cn")
   .then(response => response.json())
@@ -61,6 +67,7 @@ fetch("https://v1.hitokoto.cn")
 });
 """
 
+testRecursion :: String
 testRecursion = """
 f = (x) =>
   if(x <= 0) then 0
@@ -70,6 +77,7 @@ f = (x) =>
 [0, 1, 2, 3, 4, 5, 6].map(f)
 """
 
+testLift :: String
 testLift = """
 f = (a, b) => a + b;
 print(f(1, 4)) // 5
@@ -78,6 +86,7 @@ g = { args[0] + args[1] };
 print(g(1, 2)) // 3
 """
 
+testGoing :: String
 testGoing = """
 state welcome {
     print("hello world");
@@ -92,6 +101,7 @@ state bye {
 going welcome
 """
 
+testVisit :: String
 testVisit = """
 state welcome {
     print("hello world");
@@ -109,6 +119,7 @@ print("done");
 // done.
 """
 
+guessNumber :: String
 guessNumber = """
 valid = (digits) =>
     (new Set(digits.split(""))).size === 4
@@ -140,6 +151,7 @@ event msg (user, cont: "^new$") => theNumber = generate()
 print(theNumber = generate())
 """
 
+wolf :: String
 wolf = """
 names = []
 players = {}
@@ -564,6 +576,7 @@ event [msg, me, dm] (user, cont: "^/help$") => {
 event [msg, me] (user, cont: "^/werewolf$") => going prepare
 """
 
+execute :: String -> Effect MachineState
 execute ctx = case parse parseScript ctx of
     Right script -> do
        runVM script
@@ -575,20 +588,27 @@ execute ctx = case parse parseScript ctx of
               , env: Top
               , exprs: Nil
               , states: []
+              , events: newObject undefined
+              , timers: newObject undefined
               }
 
+compile :: String -> Effect Unit
 compile ctx = case parse parseScript ctx of
     Right script -> logShow script
     Left err -> log ("error: " <> show err)
 
-execute' ctx = do
+
+doing :: String -> Effect Unit
+doing ctx = do
     machine <- execute ctx
     log $ "=> " <> stringify_ machine.val
 
+testing :: forall t3 t8. Show t8 => ParserT t3 Identity t8 -> t3 -> Effect Unit
 testing parser context = case parse parser context of
     Right ir -> logShow ir
     Left err -> log ("error: " <> show err)
 
+testAbs :: Effect Unit
 testAbs = do
   testing parseScript "()" -- fail
   testing parseScript "a" -- pass
@@ -598,9 +618,8 @@ testAbs = do
   testing parseScript "1" -- pass
   testing parseScript "\"hello\"" -- pass
 
-doing = execute'
-
-ctx = """
+ctx'' :: String
+ctx'' = """
 a = {k: 3}
 a.val = 1
 c = 1
@@ -612,6 +631,7 @@ console.log(c)
 console.log(d)
 """
 
+objctx :: String
 objctx = """
 // usage:
 //   werewolf("zh");
@@ -1204,6 +1224,7 @@ werewolf = (lang) => {
   event [msg, me] (user, cont: "^/werewolf$") => going prepare
 }"""
 
+test :: String
 -- test = "later (3000); (a, b) => console.log(2)"
 test = """
 k = {}
@@ -1220,6 +1241,7 @@ console.log(k)
 -- test = """{ x: "asdf" => 3 }"""
 
 
+{-
 testString = "for (i = 0; i < 10; i++) print(i)"
 testParser parser ctx = case parse parser ctx of
     Right script -> logShow script
@@ -1260,3 +1282,43 @@ main = do
   compile errorForIn1
   compile errorForOf0
   compile errorForOf1
+ -}
+ 
+testMachine :: String
+testMachine = """
+-1
+//k = a => a + 1
+//names = []
+//f = () => {
+//  if true then {
+//    console.log(__this__.env.value0.root.value0.root)
+//    //console.log(__this__.env.value0.root.value0.root.value0.root)
+//    console.log(k(3))
+//    console.log(names)
+//  }
+//  console.log(names)
+//}
+//
+//console.log(names)
+//f()
+//console.log(names)
+"""
+
+main :: Effect Unit
+main = do
+  compile testMachine
+  doing testMachine
+  -- doing testLoop
+  -- doing testAjax
+  -- doing testRecursion
+  -- doing testLift
+  -- doing testGoing
+  -- doing testVisit
+  -- doing guessNumber
+  -- doing wolf
+  -- compile wolf
+  -- doing ctx''
+  -- doing "0 && print(2)"
+  -- doing "print(2) || print(2)"
+  -- compile objctx
+  -- compile test
