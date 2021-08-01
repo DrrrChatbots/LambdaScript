@@ -107,11 +107,17 @@ update env key val =
         Nothing -> false
 
 {- insert/update a new value only -}
-insert :: Env -> String -> Term -> Env
-insert Top key val = Top
-insert env@(Env e) key val = let
+save :: Env -> String -> Term -> Env
+save Top key val = Top
+save env@(Env e) key val = let
     exist = update env key val
     _ = if exist
         then true
         else updateTab e.tab key val in
     env
+
+{- insert a new value only -}
+insert :: Env -> String -> Term -> Env
+insert Top key val = Top
+insert env@(Env e) key val = let
+    _ = updateTab e.tab key val in env

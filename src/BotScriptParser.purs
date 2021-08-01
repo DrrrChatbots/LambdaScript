@@ -13,7 +13,7 @@ import Data.Maybe
 import Data.String hiding (null)
 import Data.Tuple (Tuple)
 import Data.Tuple.Nested
-import Prelude
+import Prelude hiding (when,between)
 import Text.Parsing.Parser
 import Text.Parsing.Parser.Combinators
 import Text.Parsing.Parser.Expr
@@ -63,6 +63,7 @@ tokParser = makeTokenParser customStyle
 whiteSpace = tokParser.whiteSpace
 angles p = tokParser.angles p
 parens p = tokParser.parens p
+tryParens p = try $ between (symbol "(") (symbol ")") p
 braces p = tokParser.braces p
 brackets p = tokParser.brackets p
 parseIdentifier = tokParser.identifier
@@ -70,6 +71,7 @@ parseStringLiteral = tokParser.stringLiteral
 parseKeyLiteral = tokParser.keyLiteral
 symbol xs = tokParser.symbol xs
 reserved xs = tokParser.reserved xs
+reserved' xs = tokParser.reserved xs *> pure xs
 reservedOp xs = tokParser.reservedOp xs
 reservedOp' xs = tokParser.reservedOp xs *> pure xs
 
@@ -246,20 +248,20 @@ op'tab exprP =
     [ [postfix $ choice
       [parseApp exprP, dot, sub exprP, inc's, dec's]]
     , [prefix $ choice [neg, not, new, delete, inc'p, dec'p]]
+    , [binary "*" AssocLeft]
+    , [binary "/" AssocLeft]
+    , [binary "%" AssocLeft]
+    , [binary "+" AssocLeft]
+    , [binary "-" AssocLeft]
     , [binary "<" AssocLeft]
     , [binary "<=" AssocLeft]
     , [binary ">" AssocLeft]
     , [binary ">=" AssocLeft]
     , [binary' "in" AssocLeft]
-    , [binary "===" AssocLeft]
     , [binary "==" AssocLeft]
-    , [binary "!==" AssocLeft]
     , [binary "!=" AssocLeft]
-    , [binary "/" AssocLeft]
-    , [binary "%" AssocLeft]
-    , [binary "*" AssocLeft]
-    , [binary "-" AssocLeft]
-    , [binary "+" AssocLeft]
+    , [binary "===" AssocLeft]
+    , [binary "!==" AssocLeft]
     , [binary "&&" AssocRight]
     , [binary "||" AssocRight]
     ]
@@ -276,18 +278,21 @@ parseSimpleExpr exprP =
 
 -- try to prevent consume input
 parseExpr :: ParserT String Identity Expr
-parseExpr = fix $ \self -> do
+parseExpr = (fix $ \self -> do
     expr <- (parseAbs self)
-            <|> (try $ parseStmtExpr self)
+            <|> (parseStmtExpr self)
             <|> (do
-                expr <- parseSimpleExpr self
+                expr <- try (parseSimpleExpr self)
                 expr' <- (parseBinding self expr <|> pure expr)
                 P.optional (reservedOp ";")
                 pure expr'
                 )
-            <|> parseObject self
-            <?> "Expression"
-    pure expr
+            <|> (do
+                expr <- parseObject self
+                P.optional (reservedOp ";")
+                pure expr
+                )
+    pure expr) <?> "Expression"
 
 -- parseKey :: ParserT String m String
 parseKey = let
@@ -355,97 +360,91 @@ parseEvent exprP = do
   expr <- expect $ exprP <?> "Event Expr"
   pure $ Event name expr
 
-parseFLoop exprP = let
-  desc = do
-     init <- expect $ exprP <?> "For Init Expr"
-     cond <- expect $ exprP <?> "For Cond Expr"
-     step <- expect $ exprP <?> "For Step Expr"
-     pure $ init /\ cond /\ step in do
-        reserved "for"
-        init /\ cond /\ step <- (parens desc <|> desc)
-        body <- expect $ exprP <?> "For Body Expr"
-        pure $ Group (L.fromFoldable
-         [init, While cond
-         (Group (L.fromFoldable [body, step]))])
+parseLvalIter exprP = (do
+  var <- parseLval exprP <?> "For Var"
+  mid <- (reserved' "in" <|> reserved' "of")
+  pure $ true /\ var /\ mid)
+  <|> (pure $ false /\ undefined /\ undefined)
 
-parseForIn exprP = let
-  desc = do
-     var <- parseLval exprP <?> "For Var"
-     var' <- mustLval var
-     reserved "in"
-     iter <- expect $ exprP <?> "For Iter"
-     pure $ var' /\ iter in do
-        reserved "for"
-        var /\ iter <- (parens desc <|> desc)
-        body <- expect $ exprP <?> "For Body Expr"
-        pure $ Group (L.fromFoldable
-         [ (Renew (Var "@iter")
-            (App (Dot
-                (App (Dot
-                     (Var "Object") "keys") [iter]
-                ) "values") [])
-            )
-         , (Renew (Var "@it")
-            (App (Dot (Var "@iter") "next") []))
-         , While (Una "!" (Dot (Var "@it") "done"))
-         (Group (L.fromFoldable
-            [ (Renew var (Dot (Var "@it") "value"))
-            , body
-            , (Renew (Var "@it")
-                (App (Dot (Var "@iter") "next") []))
-            ]))
-         ])
+fIterHead exprP = do
+  b /\ var /\ mid <- lookAhead (parseLvalIter exprP)
+  var'' <- (parseLval exprP) <?> "For Var"
+  mid'' <- (reserved' "in" <|> reserved' "of")
+  var' <- expect (mustLval var)
+  iter <- expect (exprP <?> ("For "<> mid <> " Iter"))
+  pure $ mid /\ var' /\ iter /\ undefined
 
-parseForOf exprP = let
-  desc = do
-     var <- parseLval exprP <?> "For Var"
-     var' <- mustLval var
-     reserved "of"
-     iter <- expect $ exprP <?> "For Iter"
-     pure $ var' /\ iter in do
-        reserved "for"
-        var /\ iter <- (parens desc <|> desc)
-        body <- expect $ exprP <?> "For Body Expr"
-        pure $ Group (L.fromFoldable
-         [ (Renew (Var "@iter")
-            (App (Dot
-                (App (Dot
-                    (Var "Object") "values") [iter])
-                "values") []))
-         , (Renew (Var "@it")
-            (App (Dot (Var "@iter") "next") []))
-         , While (Una "!" (Dot (Var "@it") "done"))
-         (Group (L.fromFoldable
-            [ (Renew var (Dot (Var "@it") "value"))
-            , body
-            , (Renew (Var "@it")
-                (App (Dot (Var "@iter") "next") []))
-            ]))
-         ])
+fLoopHead exprP = do
+  init <- expect $ exprP <?> "For Init Expr"
+  cond <- expect $ exprP <?> "For Cond Expr"
+  step <- expect $ exprP <?> "For Step Expr"
+  pure $ "" /\ init /\ cond /\ step
 
-parseStmt exprP
-  = parseIfels exprP
+toFIter mid var iter body =
+  Group (L.fromFoldable
+   [ (Renew (Var "@iter")
+      (App (Dot
+          (App (Dot
+          (Var "Object")
+          (if mid == "in"
+           then "keys"
+           else "values")) [iter]
+          ) "values") [])
+      )
+   , (Renew (Var "@it")
+      (App (Dot (Var "@iter") "next") []))
+   , While (Una "!" (Dot (Var "@it") "done"))
+   (Group (L.fromFoldable
+      [ (Renew var (Dot (Var "@it") "value"))
+      , body
+      , (Renew (Var "@it")
+          (App (Dot (Var "@iter") "next") []))
+      ]))
+   ])
+
+toFLoop init cond step body =
+  Group (L.fromFoldable
+        [init, While cond
+        (Group (L.fromFoldable [body, step]))])
+
+parseFor exprP = let
+  parseFL = fLoopHead exprP
+  parseFI = fIterHead exprP in do
+  reserved "for"
+
+  mid /\ iv /\ ci /\ s <-
+    (parens parseFI <|> parseFI
+    <|> parens parseFL <|> parseFL)
+
+  body <- expect $ exprP <?> "For Body Expr"
+
+  pure $ case mid of
+    "" -> toFLoop iv ci s body
+    _ -> toFIter mid iv ci body
+
+parseStmt exprP =
+  parseIfels exprP
   <|> parseTimer exprP
   <|> parseWhile exprP
   <|> parseLater exprP
   <|> parseEvent exprP
-  <|> parseForIn exprP
-  <|> parseForOf exprP
-  <|> parseFLoop exprP
   <|> (reserved "going" *> (Going <$> expect parseIdentifier))
-  <|> (reserved "visit" *> (Visit <$> parseIdentifier))
+  <|> (reserved "visit" *> (Visit <$> expect parseIdentifier))
+  <|> parseFor exprP
   <|> (do
       exprs <- braces $ L.many exprP
       case exprs of
            L.Nil -> pure $ Obj []
            _ -> pure $ Group exprs)
+  <?> "Statement"
 
 parseStmtExpr :: ParserT String Identity Expr -> ParserT String Identity Expr
-parseStmtExpr exprP = (do
-  stmtExpr <- parseStmt exprP
-  P.optional (reservedOp ";")
-  pure stmtExpr)
-  <|> ((Group L.Nil) <$ reservedOp ";")
+parseStmtExpr exprP =
+  ((Group L.Nil) <$ reservedOp ";")
+  <|> (do
+    stmtExpr <- parseStmt exprP
+    P.optional (reservedOp ";")
+    pure stmtExpr)
   <?> "Statement Expression"
 
 parseState = do

@@ -68,7 +68,7 @@ setValExprs machine val exprs = setMachine machine ["val", "exprs"] [val, cast e
 rawMachine :: forall a. a -> MachineState
 rawMachine x = { val: none undefined
                , cur: ""
-               , env: pushEnv Top
+               , env: Env.pushEnv Top
                , exprs: (Nil : Nil)
                , states: []
                , events: newObject undefined
@@ -77,16 +77,16 @@ rawMachine x = { val: none undefined
 
 wrapMachine :: MachineState -> MachineState
 wrapMachine machine = let
-  _ = insert machine.env "__this__" (cast machine)
-  env' = pushEnv machine.env
-  _ = insert env' "__main__" (cast machine) in
+  _ = Env.insert machine.env "__this__" (cast machine)
+  env' = Env.pushEnv machine.env
+  _ = Env.insert env' "__main__" (cast machine) in
   setMachine machine ["env"] [cast env']
 
 cloneMachine :: MachineState -> MachineState
 cloneMachine parent = let
   machine = rawMachine undefined
-  _ = insert machine.env "__this__" (cast machine)
-  env' = changeBase parent.env machine.env in
+  _ = Env.insert machine.env "__this__" (cast machine)
+  env' = Env.changeBase parent.env machine.env in
   setMachine machine
     ["val", "cur", "env", "exprs", "states", "events", "timers"]
     [cast parent.val, cast parent.cur, cast env'
@@ -107,7 +107,7 @@ lvalUpdate :: MachineState -> Expr -> Term -> Effect Env
 lvalUpdate ms@{env: env} lval val =
     case lval of
         (Var name) ->
-            pure $ insert env name val
+            pure $ Env.save env name val
         (Dot obj mem) -> do
             obj' <- evalExpr ms obj
             liftEffect $ updMem obj' mem val
@@ -115,7 +115,7 @@ lvalUpdate ms@{env: env} lval val =
         (Sub obj sub) -> do
             obj' <- evalExpr ms obj
             sub' <- evalExpr ms sub
-            liftEffect $ updMem obj' sub val
+            liftEffect $ updMem obj' sub' val
             pure env
         _ -> pure env
 
@@ -126,7 +126,7 @@ liftAbs expr = Abs [] expr
 bind'event'vars :: Array String -> Array String -> Env -> Env
 bind'event'vars syms args enviorn =
   foldr (\(sym /\ arg) acc ->
-    insert acc sym (cast arg)) enviorn (zip syms args)
+    Env.insert acc sym (cast arg)) enviorn (zip syms args)
     -- TODO: consider valueOf
 
 make'event'action ::
@@ -136,7 +136,7 @@ make'event'action ::
 make'event'action syms expr machine =
   let machine' = cloneMachine machine in
     toVaArgFunction (\args ->
-    let env' = bind'event'vars (A.(:) "args" syms) args (pushEnv machine'.env)
+    let env' = bind'event'vars (A.(:) "args" syms) args (Env.pushEnv machine'.env)
         _ = setMachine machine' ["exprs", "env"] -- use cloneMachine here TODO
               [cast $ (expr : Nil) : Nil, cast env'] in do
         m <- tailRecM run machine'
@@ -174,7 +174,7 @@ run machine@{ exprs: (Cons Nil Nil) } = do
 
 run machine@{ exprs: (Cons Nil rst) } =
     pure (Loop $ setMachine machine ["exprs", "env"] [cast rst, cast pop'env])
-    where pop'env = popEnv machine.env
+    where pop'env = Env.popEnv machine.env
 
 run machine@{ exprs: (Cons (Cons _ _) _) } =
 
@@ -301,11 +301,11 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
 
         (Var name) ->
             -- need handle index
-            case assocVar name env of
+            case Env.assocVar name env of
                 Just term -> pure <<< Loop $ setValExprs machine term exprs'
                 Nothing ->
                     let none' = none undefined
-                        _ = insert env name none'
+                        _ = Env.save env name none'
                      in pure <<< Loop $ setValExprs machine none' exprs'
 
         (Obj pairs) ->
@@ -325,8 +325,8 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
             case find (\(BotState name _)
                        -> name == dest) machine.states of
               Just (BotState _ acts') ->
-                  let base'env = topBase  env
-                      _ = update base'env "__main__" (cast machine) in do
+                  let base'env = Env.topBase  env
+                      _ = Env.update base'env "__main__" (cast machine) in do
                       -- liftEffect $ setcur dest -- remove
                       liftEffect $ dropEvent machine.events machine.cur
                       -- liftEffect $ clearTimer machine.cur -- remove
@@ -362,7 +362,7 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
             pure $ Loop (setExprs machine exprs')
 
         (Group actions) ->
-            let new'env = (pushEnv env) in do
+            let new'env = (Env.pushEnv env) in do
             pure (Loop $ setMachine machine
                     ["val", "env", "exprs"]
                     [ none undefined
@@ -387,7 +387,7 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
            case lval of
                 (Var name) -> do
                    val' <- evalExprLiftedStmt machine val
-                   (let _ = insert env name val' in do
+                   (let _ = Env.save env name val' in do
                        pure <<< Loop $ setValExprs machine val' exprs')
                 (Dot obj mem) -> do
                    val' <- evalExprLiftedStmt machine val
