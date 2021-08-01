@@ -66,7 +66,9 @@ exports.setcur = state => () => {
   exports.cur = state;
 }
 
-exports.listen = state => types => args => next => () => {
+// exports.listen = state => types => args => next => () => {
+exports.listen = types => args => next => () => {
+  let state = exports.cur;
   exports.events[state] = exports.events[state] || [];
 
   [user_regex, cont_regex] = padArray(args, 2, "");
