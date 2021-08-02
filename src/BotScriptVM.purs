@@ -2,7 +2,8 @@ module BotScriptVM where
 
 import BotScript
 
-import BotScriptEnv (Env(..), assocVar, changeBase, insert, popEnv, pushEnv, topBase, update)
+import BotScriptEnv (Env(..))
+import BotScriptEnv as Env
 import Control.Monad.Rec.Class (Step(..), tailRecM)
 import Data.Array (unzip, zip, zipWith)
 import Data.Array as A
@@ -49,7 +50,7 @@ foreign import delete :: Term -> Term -> Term
 
 type MachineState = { val :: Term
                     , cur :: String
-                    , env :: Env
+                    , env :: Env.Env
                     , exprs :: List (List Expr)
                     , states :: Array BotState
                     , events :: Term
