@@ -5,7 +5,7 @@ import BotScriptEnv (Env(..), assocVar)
 import BotScriptParser (parse, parseScript)
 import BotScriptVM (
   MachineState, newObject, none,
-  runStep, runVM, rawMachine, wrapMachine)
+  runStep, runVM, rawMachine, wrapMachine, getMainMachine)
 import Data.Either (Either(..))
 import Data.List (List(..))
 import Data.Maybe (Maybe(..))
@@ -18,10 +18,7 @@ newMachine :: forall a. a -> MachineState
 newMachine x = wrapMachine (rawMachine x)
 
 getMain :: MachineState -> Term
-getMain machine =
-  case assocVar "__main__" machine.env of
-       Just term -> term
-       Nothing -> undefined
+getMain = getMainMachine
 
 execute :: String -> Effect MachineState
 execute ctx = case parse parseScript ctx of

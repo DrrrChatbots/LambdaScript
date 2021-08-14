@@ -94,11 +94,16 @@ cloneMachine parent = let
     , cast parent.exprs, cast parent.states
     , cast parent.events, cast parent.timers]
 
+getMainMachine :: MachineState -> Term
+getMainMachine machine =
+  case Env.assocVar "__main__" machine.env of
+       Just term -> term
+       Nothing -> undefined
+
 evalExpr :: MachineState -> Expr -> Effect Term
 evalExpr machine expr = do
     x <- tailRecM run $ setExprs machine ((expr : Nil): Nil)
     pure x.val
-
 
 runExpr :: Expr -> MachineState -> Effect MachineState
 runExpr expr machine = tailRecM run machine'
@@ -380,7 +385,7 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
                 guards <- traverse (evalExpr machine) grds
                 -- liftEffect $ logShow event
                 -- liftEffect $ listen machine.cur etypes guards -- remove
-                liftEffect $ meetEvent machine.events machine.cur etypes guards -- remove
+                liftEffect $ meetEvent (getMainMachine machine) machine.cur etypes guards -- remove
                     (make'event'action syms expr' machine)
                 pure <<< Loop $ setValExprs machine (none undefined) exprs'
 

@@ -138,12 +138,12 @@ function padArray(array, length, fill){
     array;
 }
 
-exports.meetEvent = events => state => types => args => next => () => {
-  events[state] = events[state] || [];
+exports.meetEvent = machine => state => types => args => next => () => {
+  machine.events[state] = machine.events[state] || [];
 
   [user_regex, cont_regex] = padArray(args, 2, "");
 
-  events[state].push([
+  machine.events[state].push([
     types, user_regex, cont_regex, next
   ])
   //console.log(`Event ${types} ${JSON.stringify(args)}`);
