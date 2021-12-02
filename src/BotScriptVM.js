@@ -117,8 +117,8 @@ exports.bool = pred => thn => els => {
 //}
 
 //exports.clearAllTimer = () => {
-//  for(s in exports.timers){
-//    for(id of exports.timers[s]){
+//  for(let s in exports.timers){
+//    for(let id of exports.timers[s]){
 //      clearInterval(id);
 //    }
 //  }
@@ -155,7 +155,7 @@ exports.dropEvent = events => state => () => {
 
 exports.dropTimer = timers => state => () => {
   if(timers[state])
-    for(id of timers[state])
+    for(let id of timers[state])
       clearInterval(id);
   timers[state] = [];
 }
@@ -237,6 +237,6 @@ botlang_builtins = {
   }
 }
 
-for(key in botlang_builtins){
+for(let key in botlang_builtins){
   globalThis[key] = botlang_builtins[key];
 }
