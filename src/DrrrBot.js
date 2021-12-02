@@ -43,7 +43,7 @@ botlang_builtins = {
   }
 }
 
-for(key in botlang_builtins){
+for(let key in botlang_builtins){
   globalThis[key] = botlang_builtins[key];
 }
 

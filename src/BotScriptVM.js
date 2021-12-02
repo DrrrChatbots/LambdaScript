@@ -115,8 +115,8 @@ exports.setTimer = state => prd => act => () => {
 }
 
 exports.clearAllTimer = () => {
-  for(s in exports.timers){
-    for(id of exports.timers[s]){
+  for(let s in exports.timers){
+    for(let id of exports.timers[s]){
       clearInterval(id);
     }
   }
@@ -125,7 +125,7 @@ exports.clearAllTimer = () => {
 
 exports.clearTimer = state => () => {
   if(exports.timers[state])
-    for(id of exports.timers[state])
+    for(let id of exports.timers[state])
       clearInterval(id);
   exports.timers[state] = [];
 }
