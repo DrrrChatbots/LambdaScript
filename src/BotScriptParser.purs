@@ -67,7 +67,7 @@ tryParens p = try $ between (symbol "(") (symbol ")") p
 braces p = tokParser.braces p
 brackets p = tokParser.brackets p
 parseIdentifier = tokParser.identifier
-parseStringLiteral = tokParser.stringLiteral
+parseStringLiteral = tokParser.stringLiteral <|> tokParser.singleQuoteStringLiteral
 parseKeyLiteral = tokParser.keyLiteral
 symbol xs = tokParser.symbol xs
 reserved xs = tokParser.reserved xs
@@ -232,8 +232,13 @@ sub exprP = (brackets $ exprP >>= \sub'expr ->
 
 parseApp exprP = do
   args <- parens $ exprP `sepEndBy` (reservedOp ",")
-  P.optional (reservedOp ";")
-  pure $ \expr -> App expr (fromFoldable args)
+  arrow <- optionMaybe (lookAhead (symbol "=>"))
+  case arrow of
+       Just pattern -> fail "call cannot be followed by =>"
+       Nothing -> (do
+        P.optional (reservedOp ";")
+        pure $ \expr -> App expr (fromFoldable args)
+      )
 
 binary name assoc =
     Infix ((Bin name) <$ reservedOp name) assoc

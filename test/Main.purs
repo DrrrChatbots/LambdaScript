@@ -1258,6 +1258,8 @@ main = do
   -- testParser (parseStmtExpr parseExpr) validForL0
   -- testParser (parseSimpleExpr parseExpr) validForL0
   -- testParser (parseExpr) validForL0
+  -- testParser parseStringLiteral "\"hello world\""
+  -- compile "10 (a, b) => { a + b } "
   compile validForL0
   compile validForL1
   compile validForL2

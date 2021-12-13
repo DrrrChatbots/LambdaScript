@@ -11,7 +11,7 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 import Foreign.Object as FO
 
-foreign import listen :: String -> (Array String) -> Array Term -> Term -> Effect Unit
+foreign import listen :: (Array String) -> Array Term -> Term -> Effect Unit
 foreign import setcur :: String -> Effect Unit
 foreign import clearAllEvent :: Effect Unit
 

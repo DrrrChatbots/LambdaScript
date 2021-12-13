@@ -138,6 +138,7 @@ function padArray(array, length, fill){
     array;
 }
 
+
 exports.meetEvent = machine => state => types => args => next => () => {
   machine.events[state] = machine.events[state] || [];
 
