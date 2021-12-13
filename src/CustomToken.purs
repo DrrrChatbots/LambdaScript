@@ -168,6 +168,7 @@ type GenTokenParser s m
         -- | gaps. The literal string is parsed according to the grammar rules
         -- | defined in the Haskell report (which matches most programming
         -- | languages quite closely).
+        singleQuoteStringLiteral    :: ParserT s m String,
         stringLiteral    :: ParserT s m String,
         -- | This lexeme parser parses a natural number (a positive whole
         -- | number). Returns the value of the number. The number can be
@@ -316,6 +317,7 @@ makeTokenParser (LanguageDef languageDef)
       , reservedOp: reservedOp
 
       , charLiteral: charLiteral
+      , singleQuoteStringLiteral: singleQuoteStringLiteral
       , stringLiteral: stringLiteral
       , keyLiteral: keyLiteral
       , natural: natural
@@ -421,12 +423,29 @@ makeTokenParser (LanguageDef languageDef)
     keyLetter :: ParserT String m Char
     keyLetter = satisfy (\c -> (c /= ':') && (c /= ' ') && (c > '\x1A'))
 
+
+    singleQuotestringChar :: ParserT String m (Maybe Char)
+    singleQuotestringChar = (Just <$> characterChar)
+             <?> "string character"
+
+    singleQuoteStringLiteral :: ParserT String m String
+    singleQuoteStringLiteral = lexeme go <?> "character"
+      where
+        go :: ParserT String m String
+        go = do
+            maybeChars <- between (char '\'') (char '\'' <?> "end of 'string'") (List.many singleQuotestringChar)
+            pure $ SCU.fromCharArray $ List.toUnfoldable $ foldr folder Nil maybeChars
+
+        folder :: Maybe Char -> List Char -> List Char
+        folder Nothing chars = chars
+        folder (Just c) chars = Cons c chars
+
     stringLiteral :: ParserT String m String
     stringLiteral = lexeme (go <?> "literal string")
       where
         go :: ParserT String m String
         go = do
-            maybeChars <- between (char '"') (char '"' <?> "end of string") (List.many stringChar)
+            maybeChars <- between (char '"') (char '"' <?> "end of \"string\"") (List.many stringChar)
             pure $ SCU.fromCharArray $ List.toUnfoldable $ foldr folder Nil maybeChars
 
         folder :: Maybe Char -> List Char -> List Char
