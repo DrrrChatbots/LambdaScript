@@ -131,7 +131,7 @@ liftAbs expr = Abs [] expr
 
 bind'event'vars :: Array String -> Array String -> Env -> Env
 bind'event'vars syms args enviorn =
-  foldr (\(sym /\ arg) acc ->
+  foldl (\acc (sym /\ arg) ->
     Env.insert acc sym (cast arg)) enviorn (zip syms args)
     -- TODO: consider valueOf
 
