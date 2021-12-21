@@ -1,6 +1,7 @@
 module BotScriptVM where
 
 import BotScript
+import Data.Foldable
 
 import BotScriptEnv (Env(..))
 import BotScriptEnv as Env
