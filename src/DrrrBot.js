@@ -1,5 +1,10 @@
 stringify = obj => {
-  str = JSON.stringify(obj)
+  try{
+    str = JSON.stringify(obj);
+  }
+  catch(err){
+    return '[Circular Object]';
+  }
   if(obj === undefined)
     str = "undefined";
   else if(typeof obj == 'function')
@@ -56,11 +61,13 @@ function padArray(array, length, fill){
     array;
 }
 
+// ignore
 exports.clearAllEvent = () => {
   exports.cur = "";
   exports.events = {};
 }
 
+// done
 exports.setcur = state => () => {
   if(exports.cur) exports.events[exports.cur] = [];
   exports.cur = state;
