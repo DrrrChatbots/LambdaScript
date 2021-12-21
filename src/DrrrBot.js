@@ -1,5 +1,10 @@
 stringify = obj => {
-  str = JSON.stringify(obj)
+  try{
+    str = JSON.stringify(obj);
+  }
+  catch(err){
+    return '[Circular Object]';
+  }
   if(obj === undefined)
     str = "undefined";
   else if(typeof obj == 'function')
