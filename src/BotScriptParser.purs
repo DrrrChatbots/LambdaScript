@@ -253,11 +253,11 @@ op'tab exprP =
     [ [postfix $ choice
       [parseApp exprP, dot, sub exprP, inc's, dec's]]
     , [prefix $ choice [neg, not, new, delete, inc'p, dec'p]]
-    , [binary "*" AssocLeft]
     , [binary "/" AssocLeft]
+    , [binary "*" AssocLeft]
     , [binary "%" AssocLeft]
-    , [binary "+" AssocLeft]
     , [binary "-" AssocLeft]
+    , [binary "+" AssocLeft]
     , [binary "<" AssocLeft]
     , [binary "<=" AssocLeft]
     , [binary ">" AssocLeft]
