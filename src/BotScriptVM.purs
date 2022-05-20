@@ -357,16 +357,16 @@ run machine@{ exprs: (Cons (Cons _ _) _) } =
                       -- liftEffect $ dropTimer machine.timers machine.cur
                       -- because will return , so no clear env (dynamic scoping)
                       pure (Loop $ setExprs machine
-                           ((acts' : (Reset machine.cur) : exprs) : exprss))
+                           ((acts' : exprs) : exprss))
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> stat <> "> not found"
                   pure (Done machine)
 
-        (Reset stat) -> do
-            -- liftEffect $ setcur stat -- remove
-            -- liftEffect $ dropEvent machine.events machine.cur
-            pure $ Loop (setExprs machine exprs')
+        -- (Reset stat) -> do
+        --     -- liftEffect $ setcur stat -- remove
+        --     -- liftEffect $ dropEvent machine.events machine.cur
+        --     pure $ Loop (setExprs machine exprs')
 
         (Group actions) ->
             let new'env = (Env.pushEnv env) in do
