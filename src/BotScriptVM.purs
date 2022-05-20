@@ -285,18 +285,20 @@ run machine@{ exprs: (Cons (Cons expr'cur exprs) exprss), env: env } =
             case find (\(BotState name _)
                        -> name == stat) machine.states of
               Just (BotState _ acts') -> do
-                      liftEffect $ setcur stat
+                      -- liftEffect $ setcur stat
                       -- liftEffect $ clearTimer machine.cur
                       -- because will return , so no clear env (dynamic scoping)
-                      pure (Loop $ machine { exprs = ((acts' : (Reset machine.cur) : exprs) : exprss) })
+                      -- pure (Loop $ machine { exprs = ((acts' : (Reset machine.cur) : exprs) : exprss) })
+                      -- don't reset cur, do not modify state
+                      pure (Loop $ machine { exprs = ((acts' : exprs) : exprss) })
               Nothing -> do
                   liftEffect <<< log $
                       "state <" <> stat <> "> not found"
                   pure (Done machine)
 
-        (Reset stat) -> do
-            liftEffect $ setcur stat
-            pure $ Loop machine'
+        -- (Reset stat) -> do
+        --     liftEffect $ setcur stat
+        --     pure $ Loop machine'
 
         (Group actions) ->
             let new'env = (Env.pushEnv env) in
