@@ -27,6 +27,7 @@ import Data.List (List)
 import Data.List as L
 import Data.String.CodeUnits (fromCharArray, singleton)
 import Data.String.CodeUnits as SCU
+import Data.Tuple (Tuple)
 import Effect (Effect)
 import Effect.Console (log)
 import Effect.Exception (name)
@@ -88,7 +89,7 @@ parseNumber =
     (try tokParser.float)
     <|> (toNumber <$> tokParser.integer)
 
-parseArray exprP = fix $ \self ->
+parseArray exprP = -- fix $ \self ->
   (brackets $ fromFoldable >>> Arr <$>
       exprP `sepEndBy` (reservedOp ","))
 
@@ -135,7 +136,7 @@ parsePmatch = do
          Nothing -> pure $ (false /\ var /\ (Trm $ toTerm "String" ""))
 
 -- () => body
-parseArgs = fix $ \self -> do
+parseParams = fix $ \self -> do
   try $ reservedOp "("
   reservedOp ")"
   consume
@@ -144,7 +145,7 @@ parseArgs = fix $ \self -> do
 
 -- a => body
 -- a : "" => body
-parseArgs'' = fix $ \self -> do
+parseParams'' = fix $ \self -> do
   (b /\ v /\ p) <- lookAhead parsePmatch
   try (do
     _ <- parsePmatch
@@ -154,7 +155,7 @@ parseArgs'' = fix $ \self -> do
 -- (a) => body
 -- (a : "") => body
 -- (a, b) => body
-parseArgs' = fix $ \self -> do
+parseParams' = fix $ \self -> do
   args <- lookAhead (parens $ fromFoldable <$>
     parsePmatch `sepEndBy` (reservedOp ","))
   case args of
@@ -173,9 +174,9 @@ parseArgs' = fix $ \self -> do
     )
 
 parseAbs exprP = do
-    args <- (parseArgs
-      <|> parseArgs'
-      <|> parseArgs'')
+    args <- (parseParams
+      <|> parseParams'
+      <|> parseParams'')
     body <- expect $ exprP <?> "Lambda Body Expr"
     pure $ Abs args body
 
@@ -195,7 +196,6 @@ parseBinding exprP expr = do
         <|> reservedOp' "%="
     lval <- mustLval expr
     rval <- exprP <?> "Binding Expression"
-    P.optional (reservedOp ";")
     case op of
          "+=" -> pure $ Renew lval (Bin "+" lval rval)
          "-=" -> pure $ Renew lval (Bin "-" lval rval)
@@ -204,13 +204,22 @@ parseBinding exprP expr = do
          "%=" -> pure $ Renew lval (Bin "%" lval rval)
          _ -> pure $ Renew lval rval
 
+parseArgs exprP = do
+  args <- parens $ exprP `sepEndBy` (reservedOp ",")
+  arrow <- optionMaybe (lookAhead (symbol "=>"))
+  case arrow of
+       Just pattern -> fail "call cannot be followed by =>"
+       Nothing -> (do
+        pure $ (fromFoldable args)
+      )
+
 parseTerm exprP = choice
-    [  parens exprP
-    , (Trm <<< toTerm "String" <$> parseStringLiteral)
+    [ (Trm <<< toTerm "String" <$> parseStringLiteral)
     , (Trm <<< toTerm "Number" <$> parseNumber)
     , (Trm <<< toTerm "Boolean" <$> parseBoolean)
-    , (Var <$> parseIdentifier)
-    , parseArray exprP
+    , parseApp exprP (Var <$> parseIdentifier)
+    , parseApp exprP (parseArray exprP)
+    , parseApp exprP (parens exprP)
     ]
 
 neg = (Una "-" <$ reservedOp "-")
@@ -223,22 +232,14 @@ dec's = (Una "_--" <$ reservedOp "--")
 inc'p = (Una "++_" <$ reservedOp "++")
 dec'p = (Una "--_" <$ reservedOp "--")
 
-dot = (reservedOp "." *>
-       parseIdentifier >>= \attr ->
-       pure $ \expr -> Dot expr attr)
+dot exprP = do
+  reservedOp "."
+  attr <- parseIdentifier
+  argss <- L.many (parseArgs exprP)
+  pure $ \expr -> wrapApps (Dot expr attr) argss
 
 sub exprP = (brackets $ exprP >>= \sub'expr ->
        pure $ \expr -> Sub expr sub'expr)
-
-parseApp exprP = do
-  args <- parens $ exprP `sepEndBy` (reservedOp ",")
-  arrow <- optionMaybe (lookAhead (symbol "=>"))
-  case arrow of
-       Just pattern -> fail "call cannot be followed by =>"
-       Nothing -> (do
-        P.optional (reservedOp ";")
-        pure $ \expr -> App expr (fromFoldable args)
-      )
 
 binary name assoc =
     Infix ((Bin name) <$ reservedOp name) assoc
@@ -251,7 +252,7 @@ postfix p = Postfix <<< chainl1 p $ pure (flip (<<<))
 
 op'tab exprP =
     [ [postfix $ choice
-      [parseApp exprP, dot, sub exprP, inc's, dec's]]
+      [dot exprP, sub exprP, inc's, dec's]]
     , [prefix $ choice [neg, not, new, delete, inc'p, dec'p]]
     , [binary "/" AssocLeft]
     , [binary "%" AssocLeft]
@@ -274,30 +275,38 @@ op'tab exprP =
 parseLval exprP = (
     buildExprParser
         [[postfix $ choice
-            [dot, sub exprP]]]
+            [dot exprP, sub exprP]]]
         (parseTerm exprP)
 )
 
 parseSimpleExpr exprP =
   buildExprParser (op'tab exprP) (parseTerm exprP)
 
+wrapApps apps L.Nil = apps
+wrapApps apps (args L.: argss) = wrapApps (App apps args) argss
+
+parseApp exprP funcP = do
+  func <- funcP
+  argss <- L.many (parseArgs exprP)
+  pure $ wrapApps func argss
+
 -- try to prevent consume input
 parseExpr :: ParserT String Identity Expr
-parseExpr = (fix $ \self -> do
-    expr <- (parseAbs self)
-            <|> (parseStmtExpr self)
-            <|> (do
+parseExpr = fix $ \self -> (
+  (Group L.Nil) <$ reservedOp ";" <|> (do
+    expr <- parseApp self (
+             (parseAbs self) <|>
+             (parseStmtExpr self) <|>
+             (do
                 expr <- try (parseSimpleExpr self)
                 expr' <- (parseBinding self expr <|> pure expr)
-                P.optional (reservedOp ";")
-                pure expr'
-                )
-            <|> (do
+                pure expr') <|>
+             (do
                 expr <- parseObject self
-                P.optional (reservedOp ";")
-                pure expr
-                )
-    pure expr) <?> "Expression"
+                pure expr)
+            )
+    P.optional (reservedOp ";")
+    pure expr)) <?> "Expression"
 
 -- parseKey :: ParserT String m String
 parseKey = let
@@ -444,11 +453,8 @@ parseStmt exprP =
   <?> "Statement"
 
 parseStmtExpr :: ParserT String Identity Expr -> ParserT String Identity Expr
-parseStmtExpr exprP =
-  ((Group L.Nil) <$ reservedOp ";")
-  <|> (do
+parseStmtExpr exprP = (do
     stmtExpr <- parseStmt exprP
-    P.optional (reservedOp ";")
     pure stmtExpr)
   <?> "Statement Expression"
 
