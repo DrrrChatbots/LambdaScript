@@ -11,6 +11,7 @@ import Data.Identity
 import Data.Int
 import Data.Maybe
 import Data.String hiding (null)
+import Data.Tuple (Tuple)
 import Data.Tuple.Nested
 import Prelude hiding (when,between)
 import Text.Parsing.Parser
